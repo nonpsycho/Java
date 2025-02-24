@@ -23,3 +23,4 @@
 - **Как найти рецепт?** Вы можете получить список всех рецептов, отправив GET-запрос на /api/recipes и использовать параметры фильтрации для поиска.
 
 # Ссылка на Sonar
+https://sonarcloud.io/project/overview?id=nonpsycho_Java
