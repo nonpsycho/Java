@@ -113,7 +113,6 @@ public class UserService {
         userDto.setId(user.getId());
         userDto.setUsername(user.getUsername());
         userDto.setEmail(user.getEmail());
-        userDto.setPassword(user.getPassword());
 
         if (user.getComments() != null) {
             List<CommentDto> commentDtos = user.getComments().stream()
