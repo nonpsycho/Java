@@ -1,7 +1,5 @@
 package com.gnomeland.foodlab.service;
 
-import com.gnomeland.foodlab.dao.RecipeRepository;
-import com.gnomeland.foodlab.dao.UserRepository;
 import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.dto.RecipeDto;
 import com.gnomeland.foodlab.dto.UserDto;
@@ -10,6 +8,8 @@ import com.gnomeland.foodlab.exception.UserNotFoundException;
 import com.gnomeland.foodlab.model.Comment;
 import com.gnomeland.foodlab.model.Recipe;
 import com.gnomeland.foodlab.model.User;
+import com.gnomeland.foodlab.repository.RecipeRepository;
+import com.gnomeland.foodlab.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +32,7 @@ public class RecipeService {
         return recipeRepository.findAll().stream()
                 .filter(recipe -> name == null || recipe.getName().equalsIgnoreCase(name))
                 .map(this::convertToDto)
-                .toList(); // Replaced with Stream.toList()
+                .toList();
     }
 
     public RecipeDto getRecipeById(Integer id) {
@@ -43,13 +43,6 @@ public class RecipeService {
 
     public RecipeDto addRecipe(RecipeDto recipeDto) {
         Recipe recipe = convertToEntity(recipeDto);
-
-        List<Recipe> existingRecipies = recipeRepository.findByNameIgnoreCase(recipe.getName());
-
-        if (!existingRecipies.isEmpty()) {
-            throw new IllegalArgumentException("Recipe with the same name already exists: "
-                    +  recipe.getName());
-        }
         return convertToDto(recipeRepository.save(recipe));
     }
 
@@ -68,6 +61,7 @@ public class RecipeService {
                 .orElseThrow(() -> new RecipeNotFoundException(id));
 
         recipe.setName(updatedRecipeDto.getName());
+        recipe.setIngredients(updatedRecipeDto.getIngredients());
 
         return convertToDto(recipe);
     }
@@ -78,6 +72,10 @@ public class RecipeService {
 
         if (partialRecipeDto.getName() != null) {
             recipe.setName(partialRecipeDto.getName());
+        }
+
+        if (partialRecipeDto.getIngredients() != null) {
+            recipe.setIngredients(partialRecipeDto.getIngredients());
         }
 
         return convertToDto(recipeRepository.save(recipe));

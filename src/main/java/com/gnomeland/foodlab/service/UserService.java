@@ -1,7 +1,5 @@
 package com.gnomeland.foodlab.service;
 
-import com.gnomeland.foodlab.dao.RecipeRepository;
-import com.gnomeland.foodlab.dao.UserRepository;
 import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.dto.RecipeDto;
 import com.gnomeland.foodlab.dto.UserDto;
@@ -9,6 +7,8 @@ import com.gnomeland.foodlab.exception.UserNotFoundException;
 import com.gnomeland.foodlab.model.Comment;
 import com.gnomeland.foodlab.model.Recipe;
 import com.gnomeland.foodlab.model.User;
+import com.gnomeland.foodlab.repository.RecipeRepository;
+import com.gnomeland.foodlab.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;

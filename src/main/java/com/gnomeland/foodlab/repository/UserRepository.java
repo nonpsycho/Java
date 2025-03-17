@@ -1,4 +1,4 @@
-package com.gnomeland.foodlab.dao;
+package com.gnomeland.foodlab.repository;
 
 import com.gnomeland.foodlab.model.User;
 import java.util.List;

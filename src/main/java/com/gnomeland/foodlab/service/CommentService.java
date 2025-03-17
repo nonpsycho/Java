@@ -1,16 +1,14 @@
 package com.gnomeland.foodlab.service;
 
-import com.gnomeland.foodlab.dao.CommentRepository;
-import com.gnomeland.foodlab.dao.RecipeRepository;
-import com.gnomeland.foodlab.dao.UserRepository;
 import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.exception.CommentNotFoundException;
 import com.gnomeland.foodlab.exception.RecipeNotFoundException;
 import com.gnomeland.foodlab.exception.UserNotFoundException;
 import com.gnomeland.foodlab.model.Comment;
+import com.gnomeland.foodlab.repository.CommentRepository;
+import com.gnomeland.foodlab.repository.RecipeRepository;
+import com.gnomeland.foodlab.repository.UserRepository;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

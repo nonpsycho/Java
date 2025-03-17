@@ -23,7 +23,8 @@ public class GlobalExceptionHandler {
     private static final String PATH = "path";
 
     @ExceptionHandler
-            ({RecipeNotFoundException.class, UserNotFoundException.class, CommentNotFoundException.class})
+            ({RecipeNotFoundException.class,
+                 UserNotFoundException.class, CommentNotFoundException.class})
     public ResponseEntity<Object> handleNotFoundException(RuntimeException ex, WebRequest request) {
         logger.error("NotFoundException: {}", ex.getMessage(), ex);
         Map<String, Object> body = new LinkedHashMap<>();

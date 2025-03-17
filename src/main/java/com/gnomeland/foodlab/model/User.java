@@ -18,7 +18,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "app_user") // Переименовываем таблицу
+@Table(name = "app_users")
 @Getter
 @Setter
 public class User {
