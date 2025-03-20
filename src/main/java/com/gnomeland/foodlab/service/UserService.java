@@ -122,10 +122,10 @@ public class UserService {
         }
 
         if (user.getSavedRecipes() != null) {
-            List<RecipeDto> movieDtos = user.getSavedRecipes().stream()
+            List<RecipeDto> recipeDtos = user.getSavedRecipes().stream()
                     .map(this::convertToDto)
                     .toList();
-            userDto.setSavedRecipes(movieDtos);
+            userDto.setSavedRecipes(recipeDtos);
         }
 
         return userDto;
@@ -144,7 +144,6 @@ public class UserService {
         RecipeDto recipeDto = new RecipeDto();
         recipeDto.setId(recipe.getId());
         recipeDto.setName(recipe.getName());
-        recipeDto.setIngredients(recipe.getIngredients());
         return recipeDto;
     }
 

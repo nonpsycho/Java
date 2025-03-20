@@ -8,11 +8,11 @@ import lombok.Setter;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Getter
 @Setter
-public class RecipeDto {
+public class IngredientDto {
     private Integer id;
     private String name;
-    private Integer preparationTime;
-    private List<UserDto> users;
+    private Double proteins;
+    private Double fats;
+    private Double carbohydrates;
     private List<RecipeIngredientDto> recipeIngredients;
-    private List<CommentDto> comments;
 }
