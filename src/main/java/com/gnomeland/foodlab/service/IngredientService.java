@@ -1,5 +1,6 @@
 package com.gnomeland.foodlab.service;
 
+import com.gnomeland.foodlab.cache.RecipeCache;
 import com.gnomeland.foodlab.dto.IngredientDto;
 import com.gnomeland.foodlab.dto.RecipeIngredientDto;
 import com.gnomeland.foodlab.exception.IngredientNotFoundException;
@@ -15,15 +16,20 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class IngredientService {
-
+    private static final String CACHE_KEY_RECIPE_PREFIX = "recipe:";
+    private static final String CACHE_KEY_INGREDIENTS_PREFIX = "ingredients:";
+    private static final String CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX = "recipesByIngredient:";
     private final IngredientRepository ingredientRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
+    private final RecipeCache recipeCache;
 
     @Autowired
     public IngredientService(IngredientRepository ingredientRepository,
-                             RecipeIngredientRepository recipeIngredientRepository) {
+                             RecipeIngredientRepository recipeIngredientRepository,
+                             RecipeCache recipeCache) {
         this.ingredientRepository = ingredientRepository;
         this.recipeIngredientRepository = recipeIngredientRepository;
+        this.recipeCache = recipeCache;
     }
 
     public List<IngredientDto> getIngredients(String name) {
@@ -50,18 +56,6 @@ public class IngredientService {
     }
 
     @Transactional
-    public void deleteIngredientById(Integer id) {
-        // Удаляем все связи с рецептами
-        List<RecipeIngredient> recipeIngredients = recipeIngredientRepository
-                .findByIngredientId(id);
-        recipeIngredientRepository.deleteAll(recipeIngredients);
-
-        // Удаляем ингредиент
-        ingredientRepository.deleteById(id);
-        ResponseEntity.noContent().build();
-    }
-
-    @Transactional
     public IngredientDto updateIngredient(Integer id, IngredientDto updatedIngredientDto) {
         Ingredient ingredient = ingredientRepository.findById(id)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
@@ -71,7 +65,29 @@ public class IngredientService {
         ingredient.setFats(updatedIngredientDto.getFats());
         ingredient.setCarbohydrates(updatedIngredientDto.getCarbohydrates());
 
-        return convertToDto(ingredientRepository.save(ingredient));
+        IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
+
+        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPE_PREFIX);
+
+        return result;
+    }
+
+    @Transactional
+    public void deleteIngredientById(Integer id) {
+        // Удаляем все связи с рецептами
+        List<RecipeIngredient> recipeIngredients = recipeIngredientRepository
+                .findByIngredientId(id);
+        recipeIngredientRepository.deleteAll(recipeIngredients);
+
+        ingredientRepository.deleteById(id);
+
+        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPE_PREFIX);
+
+        ResponseEntity.noContent().build();
     }
 
     public IngredientDto patchIngredient(Integer id, IngredientDto partialIngredientDto) {
@@ -91,7 +107,13 @@ public class IngredientService {
             ingredient.setCarbohydrates(partialIngredientDto.getCarbohydrates());
         }
 
-        return convertToDto(ingredientRepository.save(ingredient));
+        IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
+
+        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPE_PREFIX);
+
+        return result;
     }
 
     public List<RecipeIngredientDto> getRecipesByIngredientId(Integer id) {

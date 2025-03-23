@@ -12,6 +12,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -28,7 +29,7 @@ public class Recipe {
     private Integer id;
 
     private String name;
-    private Integer preparationTime;
+    private Duration preparationTime;
 
     @OneToMany(mappedBy = "recipeId", fetch = FetchType.LAZY,
             cascade = CascadeType.ALL, orphanRemoval = true)

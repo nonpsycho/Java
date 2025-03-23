@@ -49,6 +49,18 @@ public class RecipeController {
         return recipeService.getCommentsByRecipeId(id);
     }
 
+    @GetMapping("/search")
+    public List<RecipeDto> searchRecipesByIngredient(
+            @RequestParam(name = "ingredient", required = false) String ingredientName) {
+        return recipeService.getRecipesByIngredient(ingredientName);
+    }
+
+    @GetMapping("/search/native")
+    public List<RecipeDto> searchRecipesByIngredientNative(
+            @RequestParam(name = "ingredient", required = false) String ingredientName) {
+        return recipeService.getRecipesByIngredientNative(ingredientName);
+    }
+
     @PostMapping
     public RecipeDto addRecipe(@RequestBody RecipeDto recipeDto) {
         return recipeService.addRecipe(recipeDto);

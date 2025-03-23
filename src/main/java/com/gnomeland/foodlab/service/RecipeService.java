@@ -1,5 +1,6 @@
 package com.gnomeland.foodlab.service;
 
+import com.gnomeland.foodlab.cache.RecipeCache;
 import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.dto.IngredientDto;
 import com.gnomeland.foodlab.dto.RecipeDto;
@@ -17,25 +18,36 @@ import com.gnomeland.foodlab.repository.IngredientRepository;
 import com.gnomeland.foodlab.repository.RecipeRepository;
 import com.gnomeland.foodlab.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+
 @Service
 public class RecipeService {
-
+    private static final String CACHE_KEY_RECIPES_ALL = "recipes:all";
+    private static final String CACHE_KEY_RECIPE_PREFIX = "recipe:";
+    private static final String CACHE_KEY_INGREDIENTS_PREFIX = "ingredients:";
+    private static final String CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX = "recipesByIngredient:";
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final IngredientRepository ingredientRepository;
+    private final RecipeCache recipeCache;
+    private static final Logger logger = LoggerFactory.getLogger(RecipeService.class);
 
     @Autowired
-    public RecipeService(RecipeRepository recipeRepository,
-                         UserRepository userRepository, IngredientRepository ingredientRepository) {
+    public RecipeService(RecipeRepository recipeRepository, UserRepository userRepository,
+                         IngredientRepository ingredientRepository, RecipeCache recipeCache) {
         this.recipeRepository = recipeRepository;
         this.userRepository = userRepository;
         this.ingredientRepository = ingredientRepository;
+        this.recipeCache = recipeCache;
     }
 
     public List<RecipeDto> getRecipes(String name) {
@@ -51,15 +63,25 @@ public class RecipeService {
         return convertToDto(recipe);
     }
 
+    @Transactional
     public RecipeDto addRecipe(RecipeDto recipeDto) {
         Recipe recipe = convertToEntity(recipeDto);
-        return convertToDto(recipeRepository.save(recipe));
+        RecipeDto result = convertToDto(recipeRepository.save(recipe));
+
+        // Очищаем кэш для общего списка рецептов
+        recipeCache.remove(CACHE_KEY_RECIPES_ALL);
+        return result;
     }
 
     @Transactional
     public void deleteRecipeById(Integer id) {
         if (recipeRepository.existsById(id)) {
             recipeRepository.deleteById(id);
+
+            // Очищаем кэш для удаленного рецепта и общего списка рецептов
+            recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + id);
+            recipeCache.remove(CACHE_KEY_RECIPES_ALL);
+            recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
         } else {
             throw new RecipeNotFoundException(id);
         }
@@ -73,6 +95,7 @@ public class RecipeService {
         recipe.setName(updatedRecipeDto.getName());
         recipe.setPreparationTime(updatedRecipeDto.getPreparationTime());
 
+        // Обновляем ингредиенты и другие поля
         List<RecipeIngredient> updatedIngredients = updatedRecipeDto.getRecipeIngredients().stream()
                 .map(dto -> {
                     RecipeIngredient recipeIngredient = new RecipeIngredient();
@@ -89,9 +112,16 @@ public class RecipeService {
         recipe.getRecipeIngredients().clear();
         recipe.getRecipeIngredients().addAll(updatedIngredients);
 
-        return convertToDto(recipeRepository.save(recipe));
+        RecipeDto result = convertToDto(recipeRepository.save(recipe));
+
+        recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + id);
+        recipeCache.remove(CACHE_KEY_RECIPES_ALL);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+
+        return result;
     }
 
+    @Transactional
     public RecipeDto patchRecipe(Integer id, RecipeDto partialRecipeDto) {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new RecipeNotFoundException(id));
@@ -103,7 +133,62 @@ public class RecipeService {
             recipe.setPreparationTime(partialRecipeDto.getPreparationTime());
         }
 
-        return convertToDto(recipeRepository.save(recipe));
+        RecipeDto result = convertToDto(recipeRepository.save(recipe));
+
+        // Очищаем кэш для обновленного рецепта и общего списка рецептов
+        recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + id);
+        recipeCache.remove(CACHE_KEY_RECIPES_ALL);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+
+        return result;
+    }
+
+    public List<RecipeDto> getRecipesByIngredient(String ingredientName) {
+        // Проверка на null или пустое имя ингредиента
+        if (ingredientName == null || ingredientName.isEmpty()) {
+            logger.warn("Имя ингредиента не указано. Возвращаем пустой список.");
+            return Collections.emptyList();
+        }
+
+        // Формируем ключ для кэша
+        String cacheKey = CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX + ingredientName;
+
+        // Проверяем, есть ли данные в кэше
+        synchronized (recipeCache) {
+            Optional<List<RecipeDto>> cachedRecipes = recipeCache.get(cacheKey);
+            if (cachedRecipes.isPresent()) {
+                logger.info("Попадание в кэш для ключа: {}", cacheKey);
+                return cachedRecipes.get();
+            } else {
+                logger.info("Промах кэша для ключа: {}", cacheKey);
+            }
+        }
+
+        // Если данных в кэше нет, выполняем запрос к БД
+        List<RecipeDto> recipes = recipeRepository.findRecipesByIngredientName(ingredientName)
+                .stream()
+                .map(this::convertToDtoWithoutUsersAndComments)
+                .toList();
+
+        // Логируем пустой результат, если рецепты не найдены
+        if (recipes.isEmpty()) {
+            logger.info("Рецепты по ингредиенту '{}' не найдены. Сохраняем пустой список в кэше.", ingredientName);
+        }
+
+        // Сохраняем результат в кэше
+        synchronized (recipeCache) {
+            recipeCache.put(cacheKey, recipes);
+        }
+
+        return recipes;
+    }
+
+    public List<RecipeDto> getRecipesByIngredientNative(String ingredientName) {
+        String searchParam = "%" + ingredientName + "%";
+        List<Recipe> recipes = recipeRepository.findRecipesByIngredientNameNative(searchParam);
+        return recipes.stream()
+                .map(this::convertToDtoWithoutUsersAndComments)
+                .toList();
     }
 
     public List<CommentDto> getCommentsByRecipeId(Integer id) {
@@ -178,6 +263,10 @@ public class RecipeService {
         recipe.getRecipeIngredients().add(recipeIngredient);
         recipeRepository.save(recipe);
 
+        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + ingredientId);
+        recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + recipeId);
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
@@ -193,6 +282,21 @@ public class RecipeService {
         recipe.getRecipeIngredients().remove(recipeIngredient);
         recipeRepository.save(recipe);
 
+        // Очищаем кэш для ингредиента
+        String ingredientCacheKey = CACHE_KEY_INGREDIENTS_PREFIX + ingredientId;
+        recipeCache.remove(ingredientCacheKey);
+        logger.info("Очищен кэш для ингредиента: {}", ingredientCacheKey);
+
+        // Очищаем кэш для рецепта
+        String recipeCacheKey = CACHE_KEY_RECIPE_PREFIX + recipeId;
+        recipeCache.remove(recipeCacheKey);
+        logger.info("Очищен кэш для рецепта: {}", recipeCacheKey);
+
+        // Очищаем кэш для рецептов по ингредиентам
+        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+        logger.info("Очищен кэш для рецептов по ингредиентам с префиксом: {}",
+                CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
@@ -205,31 +309,31 @@ public class RecipeService {
                 .toList();
     }
 
-    private RecipeDto convertToDto(Recipe recipe) {
+    private RecipeDto convertToDto(Recipe recipe, boolean includeUsers, boolean includeComments) {
         RecipeDto recipeDto = new RecipeDto();
         recipeDto.setId(recipe.getId());
         recipeDto.setName(recipe.getName());
         recipeDto.setPreparationTime(recipe.getPreparationTime());
-
-        if (recipe.getComments() != null) {
-            List<CommentDto> commentDtos = recipe.getComments().stream()
-                    .map(this::convertToDto)
-                    .toList();
-            recipeDto.setComments(commentDtos);
-        }
-
-        if (recipe.getUsers() != null) {
-            List<UserDto> userDtos = recipe.getUsers().stream()
-                    .map(this::convertToDto)
-                    .toList();
-            recipeDto.setUsers(userDtos);
-        }
 
         if (recipe.getRecipeIngredients() != null) {
             List<RecipeIngredientDto> recipeIngredientDtos = recipe.getRecipeIngredients().stream()
                     .map(this::convertToDto)
                     .toList();
             recipeDto.setRecipeIngredients(recipeIngredientDtos);
+        }
+
+        if (includeUsers && recipe.getUsers() != null) {
+            List<UserDto> userDtos = recipe.getUsers().stream()
+                    .map(this::convertToDto)
+                    .toList();
+            recipeDto.setUsers(userDtos);
+        }
+
+        if (includeComments && recipe.getComments() != null) {
+            List<CommentDto> commentDtos = recipe.getComments().stream()
+                    .map(this::convertToDto)
+                    .toList();
+            recipeDto.setComments(commentDtos);
         }
 
         return recipeDto;
@@ -278,6 +382,14 @@ public class RecipeService {
         return userDto;
     }
 
+    private RecipeDto convertToDto(Recipe recipe) {
+        return convertToDto(recipe, true, true);
+    }
+
+    private RecipeDto convertToDtoWithoutUsersAndComments(Recipe recipe) {
+        return convertToDto(recipe, false, false);
+    }
+
     private Recipe convertToEntity(RecipeDto recipeDto) {
         Recipe recipe = new Recipe();
         recipe.setId(recipeDto.getId());
@@ -285,6 +397,4 @@ public class RecipeService {
         recipe.setPreparationTime(recipeDto.getPreparationTime());
         return recipe;
     }
-
-
 }
