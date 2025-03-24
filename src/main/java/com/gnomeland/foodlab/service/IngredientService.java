@@ -10,6 +10,7 @@ import com.gnomeland.foodlab.repository.IngredientRepository;
 import com.gnomeland.foodlab.repository.RecipeIngredientRepository;
 import jakarta.transaction.Transactional;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,13 @@ public class IngredientService {
     }
 
     public IngredientDto addIngredient(IngredientDto ingredientDto) {
+        Optional<Ingredient> existingIngredient = ingredientRepository
+                .findByName(ingredientDto.getName());
+        if (existingIngredient.isPresent()) {
+            throw new IllegalArgumentException("Ingredient with the same name already exist: "
+                    + ingredientDto.getName());
+        }
+
         Ingredient ingredient = convertToEntity(ingredientDto);
         return convertToDto(ingredientRepository.save(ingredient));
     }
@@ -65,7 +73,7 @@ public class IngredientService {
         ingredient.setFats(updatedIngredientDto.getFats());
         ingredient.setCarbohydrates(updatedIngredientDto.getCarbohydrates());
 
-        IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
+        final IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
 
         recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
         recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
@@ -76,7 +84,6 @@ public class IngredientService {
 
     @Transactional
     public void deleteIngredientById(Integer id) {
-        // Удаляем все связи с рецептами
         List<RecipeIngredient> recipeIngredients = recipeIngredientRepository
                 .findByIngredientId(id);
         recipeIngredientRepository.deleteAll(recipeIngredients);
@@ -89,6 +96,7 @@ public class IngredientService {
 
         ResponseEntity.noContent().build();
     }
+
 
     public IngredientDto patchIngredient(Integer id, IngredientDto partialIngredientDto) {
         Ingredient ingredient = ingredientRepository.findById(id)
@@ -107,7 +115,7 @@ public class IngredientService {
             ingredient.setCarbohydrates(partialIngredientDto.getCarbohydrates());
         }
 
-        IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
+        final IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
 
         recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
         recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
@@ -147,7 +155,6 @@ public class IngredientService {
 
     private RecipeIngredientDto convertToDto(RecipeIngredient recipeIngredient) {
         RecipeIngredientDto dto = new RecipeIngredientDto();
-        dto.setId(recipeIngredient.getId());
         dto.setRecipeId(recipeIngredient.getRecipe().getId());
         dto.setIngredientId(recipeIngredient.getIngredient().getId());
         dto.setQuantityInGrams(recipeIngredient.getQuantityInGrams());

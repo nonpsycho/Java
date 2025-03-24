@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface RecipeRepository extends JpaRepository<Recipe, Integer> {
-
     @Query("SELECT DISTINCT r FROM Recipe r "
             + "JOIN r.recipeIngredients ri "
             + "JOIN ri.ingredient i "
