@@ -4,6 +4,7 @@ import com.gnomeland.foodlab.dto.RecipeDto;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
@@ -42,10 +43,36 @@ public class RecipeCache {
      * @param value Значение записи.
      */
     public void put(String key, List<RecipeDto> value) {
+        Objects.requireNonNull(key, "Cache key cannot be null");
+
         synchronized (cacheMap) {
-            cacheMap.put(key, new CacheEntry(value, System.currentTimeMillis()));
-            logger.info("Добавлено в кэш: ключ={}, значение={}", key, value);
+            // 1. Санитизация ключа перед использованием
+            String sanitizedKey = sanitizeKey(key);
+
+            // 2. Создание безопасной версии значения для логов
+            String safeLogValue = value != null
+                    ? "List[size=" + value.size() + "]"
+                    : "null";
+
+            // 3. Безопасное добавление в кэш
+            cacheMap.put(sanitizedKey, new CacheEntry(value, System.currentTimeMillis()));
+
+            // 4. Безопасное логирование
+            logger.info("Добавлено в кэш: ключ={}, значение={}",
+                    sanitizedKey,
+                    safeLogValue);
         }
+    }
+
+    /**
+     * Санитизирует ключ кэша, удаляя потенциально опасные символы.
+     */
+    private String sanitizeKey(String key) {
+        if (key == null) {
+            return "";
+        }
+        // Удаляем специальные символы, которые могут быть использованы для инъекций
+        return key.replaceAll("[^a-zA-Z0-9_:.-]", "_");
     }
 
     /**
@@ -90,16 +117,6 @@ public class RecipeCache {
     }
 
     /**
-     * Очищает кэш.
-     */
-    public void clear() {
-        synchronized (cacheMap) {
-            cacheMap.clear();
-            logger.info("Кэш очищен");
-        }
-    }
-
-    /**
      * Возвращает текущий размер кэша.
      *
      * @return Размер кэша.
@@ -109,23 +126,6 @@ public class RecipeCache {
             int size = cacheMap.size();
             logger.info("Текущий размер кэша: {}", size);
             return size;
-        }
-    }
-
-    /**
-     * Проверяет, содержит ли кэш запись с указанным ключом.
-     *
-     * @param key Ключ записи.
-     * @return true, если запись есть и она не истекла, иначе false.
-     */
-    public boolean contains(String key) {
-        synchronized (cacheMap) {
-            CacheEntry entry = cacheMap.get(key);
-            if (entry != null && isExpired(entry)) {
-                cacheMap.remove(key);
-                return false;
-            }
-            return cacheMap.containsKey(key);
         }
     }
 
