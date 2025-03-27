@@ -30,3 +30,4 @@ public class RecipeIngredient {
 
     private Double quantityInGrams;
 }
+

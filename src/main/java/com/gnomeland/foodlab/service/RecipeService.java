@@ -1,6 +1,6 @@
 package com.gnomeland.foodlab.service;
 
-import com.gnomeland.foodlab.cache.RecipeCache;
+import com.gnomeland.foodlab.cache.InMemoryCache;
 import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.dto.IngredientDto;
 import com.gnomeland.foodlab.dto.RecipeDto;
@@ -20,7 +20,10 @@ import com.gnomeland.foodlab.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,23 +34,20 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RecipeService {
-    private static final String CACHE_KEY_RECIPES_ALL = "recipes:all";
-    private static final String CACHE_KEY_RECIPE_PREFIX = "recipe:";
-    private static final String CACHE_KEY_INGREDIENTS_PREFIX = "ingredients:";
-    private static final String CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX = "recipesByIngredient:";
+    private static final String CACHE_KEY = "recipe_ingredient_";
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
     private final IngredientRepository ingredientRepository;
-    private final RecipeCache recipeCache;
+    private final InMemoryCache inMemoryCache;
     private static final Logger logger = LoggerFactory.getLogger(RecipeService.class);
 
     @Autowired
     public RecipeService(RecipeRepository recipeRepository, UserRepository userRepository,
-                         IngredientRepository ingredientRepository, RecipeCache recipeCache) {
+                         IngredientRepository ingredientRepository, InMemoryCache inMemoryCache) {
         this.recipeRepository = recipeRepository;
         this.userRepository = userRepository;
         this.ingredientRepository = ingredientRepository;
-        this.recipeCache = recipeCache;
+        this.inMemoryCache = inMemoryCache;
     }
 
     public List<RecipeDto> getRecipes(String name) {
@@ -66,24 +66,32 @@ public class RecipeService {
     @Transactional
     public RecipeDto addRecipe(RecipeDto recipeDto) {
         Recipe recipe = convertToEntity(recipeDto);
-        RecipeDto result = convertToDto(recipeRepository.save(recipe));
-
-        // Очищаем кэш для общего списка рецептов
-        recipeCache.remove(CACHE_KEY_RECIPES_ALL);
-        return result;
+        return convertToDto(recipeRepository.save(recipe));
     }
 
     @Transactional
     public void deleteRecipeById(Integer id) {
-        if (recipeRepository.existsById(id)) {
-            recipeRepository.deleteById(id);
+        Recipe recipe = recipeRepository.findById(id)
+                .orElseThrow(() -> new RecipeNotFoundException(id));
 
-            recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + id);
-            recipeCache.remove(CACHE_KEY_RECIPES_ALL);
-            recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
-        } else {
-            throw new RecipeNotFoundException(id);
+        for (RecipeIngredient recipeIngredient : recipe.getRecipeIngredients()) {
+            Ingredient ingredient = recipeIngredient.getIngredient();
+
+            String key = CACHE_KEY + ingredient.getName();
+            inMemoryCache.remove(key);
+
+            ingredient.getRecipeIngredients().removeIf(ri -> ri.getRecipe().getId().equals(id));
+            ingredientRepository.save(ingredient);
         }
+
+        for (User user : recipe.getUsers()) {
+            user.getSavedRecipes().removeIf(r -> r.getId().equals(id));
+            userRepository.save(user);
+        }
+
+        recipeRepository.deleteById(id);
+
+        ResponseEntity.noContent().build();
     }
 
     @Transactional
@@ -91,33 +99,46 @@ public class RecipeService {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new RecipeNotFoundException(id));
 
+        // Обновляем основные поля
         recipe.setName(updatedRecipeDto.getName());
         recipe.setPreparationTime(updatedRecipeDto.getPreparationTime());
 
-        // Обновляем ингредиенты и другие поля
-        List<RecipeIngredient> updatedIngredients = updatedRecipeDto.getRecipeIngredients().stream()
-                .map(dto -> {
-                    RecipeIngredient recipeIngredient = new RecipeIngredient();
-                    recipeIngredient.setRecipe(recipe);
-                    recipeIngredient.setIngredient(ingredientRepository
-                            .findById(dto.getIngredientId())
-                            .orElseThrow(() ->
-                                    new IllegalArgumentException("Ingredient not found")));
-                    recipeIngredient.setQuantityInGrams(dto.getQuantityInGrams());
-                    return recipeIngredient;
-                })
-                .toList();
+        // Создаем Map для новых ингредиентов
+        Map<Integer, Double> newIngredients = updatedRecipeDto.getRecipeIngredients().stream()
+                .collect(Collectors.toMap(
+                        RecipeIngredientDto::getIngredientId,
+                        RecipeIngredientDto::getQuantityInGrams));
 
-        recipe.getRecipeIngredients().clear();
-        recipe.getRecipeIngredients().addAll(updatedIngredients);
+        // 1. Обновляем существующие ингредиенты
+        recipe.getRecipeIngredients().removeIf(ri -> {
+            if (newIngredients.containsKey(ri.getIngredient().getId())) {
+                ri.setQuantityInGrams(newIngredients.get(ri.getIngredient().getId()));
+                newIngredients.remove(ri.getIngredient().getId());
+                return false;
+            }
+            return true; // Удаляем ингредиенты, которых нет в DTO
+        });
 
-        final RecipeDto result = convertToDto(recipeRepository.save(recipe));
+        // 2. Добавляем новые ингредиенты
+        newIngredients.forEach((ingId, grams) -> {
+            RecipeIngredient ri = new RecipeIngredient();
+            ri.setRecipe(recipe);
+            ri.setIngredient(ingredientRepository.findById(ingId)
+                    .orElseThrow(() -> new IllegalArgumentException("Ingredient not found")));
+            ri.setQuantityInGrams(grams);
+            recipe.getRecipeIngredients().add(ri);
+        });
 
-        recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + id);
-        recipeCache.remove(CACHE_KEY_RECIPES_ALL);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+        Recipe updatedRecipe = recipeRepository.save(recipe);
 
-        return result;
+        for (RecipeIngredient recipeIngredient : recipe.getRecipeIngredients()) {
+            Ingredient ingredient = recipeIngredient.getIngredient();
+
+            String key = CACHE_KEY + ingredient.getName();
+            inMemoryCache.remove(key);
+        }
+
+        return convertToDto(updatedRecipe);
     }
 
     @Transactional
@@ -132,56 +153,50 @@ public class RecipeService {
             recipe.setPreparationTime(partialRecipeDto.getPreparationTime());
         }
 
-        final RecipeDto result = convertToDto(recipeRepository.save(recipe));
+        Recipe updatedRecipe = recipeRepository.save(recipe);
 
-        recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + id);
-        recipeCache.remove(CACHE_KEY_RECIPES_ALL);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
-
-        return result;
+        for (RecipeIngredient recipeIngredient : recipe.getRecipeIngredients()) {
+            Ingredient ingredient = recipeIngredient.getIngredient();
+            String key = CACHE_KEY + ingredient.getName();
+            inMemoryCache.remove(key);
+        }
+        return convertToDto(updatedRecipe);
     }
 
-    public List<RecipeDto> getRecipesByIngredient(String ingredientName) {
-        if (ingredientName == null || ingredientName.isEmpty()) {
-            logger.warn("Имя ингредиента не указано. Возвращаем пустой список.");
-            return Collections.emptyList();
-        }
+    public List<RecipeDto> getRecipesByIngredientFromCacheOrDb(
+            String ingredientName, Function<String, List<Recipe>> findRecipesByIngredient) {
+        String key = CACHE_KEY + ingredientName;
 
-        String cacheKey = CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX + ingredientName;
+        if (inMemoryCache.contains(key)) {
+            logger.info("Извлечение рецептов для ингредиентов '{}' из кеша", ingredientName);
 
-        synchronized (recipeCache) {
-            Optional<List<RecipeDto>> cachedRecipes = recipeCache.get(cacheKey);
-            if (cachedRecipes.isPresent()) {
-                logger.info("Попадание в кэш для ключа: {}", cacheKey);
-                return cachedRecipes.get();
+            Optional<Object> cacheData = inMemoryCache.get(key);
+
+            if (cacheData.isPresent() && cacheData.get() instanceof List<?> cachedList) {
+                if (!cachedList.isEmpty() && cachedList.getFirst() instanceof RecipeDto) {
+                    @SuppressWarnings("unchecked")
+                    List<RecipeDto> cachedRecipes = (List<RecipeDto>) cachedList;
+                    return cachedRecipes;
+                } else {
+                    logger.warn("Данные для ключа '{}' имеют неожиданный тип или пусты.\n", key);
+                    return Collections.emptyList();
+                }
             } else {
-                logger.info("Промах кэша для ключа: {}", cacheKey);
+                logger.warn("Промах кеша или неверные данные ключа '{}'\n", key);
+                return Collections.emptyList();
             }
         }
 
-        List<RecipeDto> recipes = recipeRepository.findRecipesByIngredientName(ingredientName)
-                .stream()
+        logger.info("Извлечение рецепту по ингредиент '{}' из базы данных", ingredientName);
+        List<Recipe> recipes = findRecipesByIngredient.apply(ingredientName);
+
+        List<RecipeDto> recipeDtos = recipes.stream()
                 .map(this::convertToDtoWithoutUsersAndComments)
                 .toList();
 
-        if (recipes.isEmpty()) {
-            logger.info("Рецепты по ингредиенту '{}' не найдены. Сохраняем пустой список в кэше.",
-                    ingredientName);
-        }
+        inMemoryCache.put(key, recipeDtos);
 
-        synchronized (recipeCache) {
-            recipeCache.put(cacheKey, recipes);
-        }
-
-        return recipes;
-    }
-
-    public List<RecipeDto> getRecipesByIngredientNative(String ingredientName) {
-        String searchParam = "%" + ingredientName + "%";
-        List<Recipe> recipes = recipeRepository.findRecipesByIngredientNameNative(searchParam);
-        return recipes.stream()
-                .map(this::convertToDtoWithoutUsersAndComments)
-                .toList();
+        return recipeDtos;
     }
 
     public List<CommentDto> getCommentsByRecipeId(Integer id) {
@@ -256,9 +271,11 @@ public class RecipeService {
         recipe.getRecipeIngredients().add(recipeIngredient);
         recipeRepository.save(recipe);
 
-        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + ingredientId);
-        recipeCache.remove(CACHE_KEY_RECIPE_PREFIX + recipeId);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
+        for (RecipeIngredient recipeIngredients : recipe.getRecipeIngredients()) {
+            Ingredient recIngredients = recipeIngredients.getIngredient();
+            String key = CACHE_KEY + recIngredients.getName();
+            inMemoryCache.remove(key);
+        }
 
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
@@ -272,23 +289,14 @@ public class RecipeService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Ingredient not found in recipe"));
 
+        for (RecipeIngredient recipeIngredients : recipe.getRecipeIngredients()) {
+            Ingredient recIngredients = recipeIngredients.getIngredient();
+            String key = CACHE_KEY + recIngredients.getName();
+            inMemoryCache.remove(key);
+        }
+
         recipe.getRecipeIngredients().remove(recipeIngredient);
         recipeRepository.save(recipe);
-
-        // Очищаем кэш для ингредиента
-        String ingredientCacheKey = CACHE_KEY_INGREDIENTS_PREFIX + ingredientId;
-        recipeCache.remove(ingredientCacheKey);
-        logger.info("Очищен кэш для ингредиента: {}", ingredientCacheKey);
-
-        // Очищаем кэш для рецепта
-        String recipeCacheKey = CACHE_KEY_RECIPE_PREFIX + recipeId;
-        recipeCache.remove(recipeCacheKey);
-        logger.info("Очищен кэш для рецепта: {}", recipeCacheKey);
-
-        // Очищаем кэш для рецептов по ингредиентам
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
-        logger.info("Очищен кэш для рецептов по ингредиентам с префиксом: {}",
-                CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
 
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }

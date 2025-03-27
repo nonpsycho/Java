@@ -46,3 +46,4 @@ public class Recipe {
     @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RecipeIngredient> recipeIngredients = new ArrayList<>();
 }
+

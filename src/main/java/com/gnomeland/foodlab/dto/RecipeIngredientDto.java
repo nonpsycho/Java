@@ -14,3 +14,4 @@ public class RecipeIngredientDto {
     private IngredientDto ingredient;
     private Double quantityInGrams;
 }
+

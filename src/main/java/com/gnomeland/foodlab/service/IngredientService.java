@@ -1,6 +1,6 @@
 package com.gnomeland.foodlab.service;
 
-import com.gnomeland.foodlab.cache.RecipeCache;
+import com.gnomeland.foodlab.cache.InMemoryCache;
 import com.gnomeland.foodlab.dto.IngredientDto;
 import com.gnomeland.foodlab.dto.RecipeIngredientDto;
 import com.gnomeland.foodlab.exception.IngredientNotFoundException;
@@ -17,20 +17,18 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class IngredientService {
-    private static final String CACHE_KEY_RECIPE_PREFIX = "recipe:";
-    private static final String CACHE_KEY_INGREDIENTS_PREFIX = "ingredients:";
-    private static final String CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX = "recipesByIngredient:";
+    private static final String CACHE_KEY_RECIPE_INGREDIENT_PREFIX = "recipe_ingredient_";
     private final IngredientRepository ingredientRepository;
     private final RecipeIngredientRepository recipeIngredientRepository;
-    private final RecipeCache recipeCache;
+    private final InMemoryCache inMemoryCache;
 
     @Autowired
     public IngredientService(IngredientRepository ingredientRepository,
                              RecipeIngredientRepository recipeIngredientRepository,
-                             RecipeCache recipeCache) {
+                             InMemoryCache inMemoryCache) {
         this.ingredientRepository = ingredientRepository;
         this.recipeIngredientRepository = recipeIngredientRepository;
-        this.recipeCache = recipeCache;
+        this.inMemoryCache = inMemoryCache;
     }
 
     public List<IngredientDto> getIngredients(String name) {
@@ -68,18 +66,19 @@ public class IngredientService {
         Ingredient ingredient = ingredientRepository.findById(id)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
 
+        final String oldName = ingredient.getName();
+
         ingredient.setName(updatedIngredientDto.getName());
         ingredient.setProteins(updatedIngredientDto.getProteins());
         ingredient.setFats(updatedIngredientDto.getFats());
         ingredient.setCarbohydrates(updatedIngredientDto.getCarbohydrates());
 
-        final IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
+        Ingredient updatedIngredient = ingredientRepository.save(ingredient);
 
-        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPE_PREFIX);
+        inMemoryCache.remove(CACHE_KEY_RECIPE_INGREDIENT_PREFIX + oldName);
+        inMemoryCache.remove(CACHE_KEY_RECIPE_INGREDIENT_PREFIX + updatedIngredient.getName());
 
-        return result;
+        return convertToDto(updatedIngredient);
     }
 
     @Transactional
@@ -88,11 +87,8 @@ public class IngredientService {
                 .findByIngredientId(id);
         recipeIngredientRepository.deleteAll(recipeIngredients);
 
+        inMemoryCache.removeAll();
         ingredientRepository.deleteById(id);
-
-        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPE_PREFIX);
 
         ResponseEntity.noContent().build();
     }
@@ -101,6 +97,8 @@ public class IngredientService {
     public IngredientDto patchIngredient(Integer id, IngredientDto partialIngredientDto) {
         Ingredient ingredient = ingredientRepository.findById(id)
                 .orElseThrow(() -> new IngredientNotFoundException(id));
+
+        final String oldName = ingredient.getName();
 
         if (partialIngredientDto.getName() != null) {
             ingredient.setName(partialIngredientDto.getName());
@@ -115,13 +113,12 @@ public class IngredientService {
             ingredient.setCarbohydrates(partialIngredientDto.getCarbohydrates());
         }
 
-        final IngredientDto result = convertToDto(ingredientRepository.save(ingredient));
+        Ingredient updatedIngredient = ingredientRepository.save(ingredient);
 
-        recipeCache.remove(CACHE_KEY_INGREDIENTS_PREFIX + id);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPES_BY_INGREDIENT_PREFIX);
-        recipeCache.removeByPrefix(CACHE_KEY_RECIPE_PREFIX);
+        inMemoryCache.remove(CACHE_KEY_RECIPE_INGREDIENT_PREFIX + oldName);
+        inMemoryCache.remove(CACHE_KEY_RECIPE_INGREDIENT_PREFIX + updatedIngredient.getName());
 
-        return result;
+        return convertToDto(updatedIngredient);
     }
 
     public List<RecipeIngredientDto> getRecipesByIngredientId(Integer id) {

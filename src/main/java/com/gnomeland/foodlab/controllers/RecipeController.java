@@ -4,6 +4,7 @@ import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.dto.RecipeDto;
 import com.gnomeland.foodlab.dto.RecipeIngredientDto;
 import com.gnomeland.foodlab.dto.UserDto;
+import com.gnomeland.foodlab.repository.RecipeRepository;
 import com.gnomeland.foodlab.service.RecipeService;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,10 +27,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class RecipeController {
 
     private final RecipeService recipeService;
+    private final RecipeRepository recipeRepository;
 
     @Autowired
-    public RecipeController(RecipeService recipeService) {
+    public RecipeController(RecipeService recipeService, RecipeRepository recipeRepository) {
         this.recipeService = recipeService;
+        this.recipeRepository = recipeRepository;
     }
 
     @GetMapping
@@ -88,16 +91,20 @@ public class RecipeController {
         return ResponseEntity.ok(recipeService.getUsersForRecipe(recipeId));
     }
 
-    @GetMapping("/search")
-    public List<RecipeDto> searchRecipesByIngredient(
-            @RequestParam(name = "ingredient", required = false) String ingredientName) {
-        return recipeService.getRecipesByIngredient(ingredientName);
+    @GetMapping("/recipe-by-ingredient")
+    public ResponseEntity<List<RecipeDto>> searchRecipesByIngredient(
+            @RequestParam String ingredientName) {
+        List<RecipeDto> recipes = recipeService.getRecipesByIngredientFromCacheOrDb(ingredientName,
+                recipeRepository::findRecipesByIngredientName);
+        return recipes.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(recipes);
     }
 
-    @GetMapping("/search/native")
-    public List<RecipeDto> searchRecipesByIngredientNative(
-            @RequestParam(name = "ingredient", required = false) String ingredientName) {
-        return recipeService.getRecipesByIngredientNative(ingredientName);
+    @GetMapping("/recipe-by-ingredient-native")
+    public ResponseEntity<List<RecipeDto>> searchRecipesByIngredientNative(
+            @RequestParam String ingredientName) {
+        List<RecipeDto> recipes = recipeService.getRecipesByIngredientFromCacheOrDb(ingredientName,
+                recipeRepository::findRecipesByIngredientNameNative);
+        return recipes.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(recipes);
     }
 
     @PostMapping("/{recipeId}/ingredients/{ingredientId}")
