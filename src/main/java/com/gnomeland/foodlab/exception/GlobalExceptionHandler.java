@@ -1,66 +1,88 @@
 package com.gnomeland.foodlab.exception;
 
-import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
+import com.gnomeland.foodlab.dto.CommentDto;
+import com.gnomeland.foodlab.dto.IngredientDto;
+import com.gnomeland.foodlab.dto.RecipeDto;
+import com.gnomeland.foodlab.dto.UserDto;
+import java.util.HashMap;
 import java.util.Map;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.context.request.WebRequest;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    @ExceptionHandler(UserAssociatedException.class)
+    public ResponseEntity<String> handleUserAssociatedException(
+            UserAssociatedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ex.getMessage());
+    }
 
-    private static final String TIMESTAMP = "timestamp";
-    private static final String STATUS = "status";
-    private static final String ERROR = "error";
-    private static final String MESSAGE = "message";
-    private static final String PATH = "path";
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<String> handleValidationException(ValidationException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
 
-    @ExceptionHandler
-            ({RecipeNotFoundException.class,
-                 UserNotFoundException.class, CommentNotFoundException.class})
-    public ResponseEntity<Object> handleNotFoundException(RuntimeException ex, WebRequest request) {
-        logger.error("NotFoundException: {}", ex.getMessage(), ex);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put(TIMESTAMP, LocalDateTime.now());
-        body.put(STATUS, HttpStatus.NOT_FOUND.value());
-        body.put(ERROR, HttpStatus.NOT_FOUND.getReasonPhrase());
-        body.put(MESSAGE, ex.getMessage());
-        body.put(PATH, request.getDescription(false));
+    @ExceptionHandler(RecipeException.class)
+    public ResponseEntity<RecipeDto> handleMovieException(RecipeException e) {
+        RecipeDto errorDto = new RecipeDto();
+        errorDto.setName(e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto); // 404
+    }
 
-        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+    @ExceptionHandler(CommentException.class)
+    public ResponseEntity<CommentDto> handleCommentException(CommentException e) {
+        CommentDto errorDto = new CommentDto();
+        errorDto.setText(e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto); // 404
+    }
+
+    @ExceptionHandler(UserException.class)
+    public ResponseEntity<UserDto> handleUserException(UserException e) {
+        UserDto errorDto = new UserDto();
+        errorDto.setUsername(e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto);
+    }
+
+    @ExceptionHandler(IngredientException.class)
+    public ResponseEntity<IngredientDto> handleIngredientException(IngredientException e) {
+        IngredientDto errorDto = new IngredientDto();
+        errorDto.setName(e.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Object> handleIllegalArgumentException(IllegalArgumentException ex,
-                                                                 WebRequest request) {
-        logger.error("IllegalArgumentException: {}", ex.getMessage(), ex);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put(TIMESTAMP, LocalDateTime.now());
-        body.put(STATUS, HttpStatus.BAD_REQUEST.value());
-        body.put(ERROR, HttpStatus.BAD_REQUEST.getReasonPhrase());
-        body.put(MESSAGE, ex.getMessage());
-        body.put(PATH, request.getDescription(false));
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(
+            IllegalArgumentException ex) {
+        return buildErrorResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
 
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(
+            MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+        ex.getBindingResult().getAllErrors().forEach(error -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+        return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Object> handleGlobalException(Exception ex, WebRequest request) {
-        logger.error("Unexpected error: {}", ex.getMessage(), ex);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put(TIMESTAMP, LocalDateTime.now());
-        body.put(STATUS, HttpStatus.INTERNAL_SERVER_ERROR.value());
-        body.put(ERROR, HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
-        body.put(MESSAGE, "An unexpected error occurred");
-        body.put(PATH, request.getDescription(false));
+    public ResponseEntity<Map<String, Object>> handleException(Exception e) {
+        return buildErrorResponse("Internal server error: " + e.getMessage(),
+                HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 
-        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    private ResponseEntity<Map<String, Object>> buildErrorResponse(
+            String message, HttpStatus status) {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("message", message);
+        return new ResponseEntity<>(errorResponse, status);
     }
 }

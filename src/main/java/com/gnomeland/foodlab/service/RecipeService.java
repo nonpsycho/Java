@@ -6,9 +6,12 @@ import com.gnomeland.foodlab.dto.IngredientDto;
 import com.gnomeland.foodlab.dto.RecipeDto;
 import com.gnomeland.foodlab.dto.RecipeIngredientDto;
 import com.gnomeland.foodlab.dto.UserDto;
-import com.gnomeland.foodlab.exception.IngredientNotFoundException;
-import com.gnomeland.foodlab.exception.RecipeNotFoundException;
-import com.gnomeland.foodlab.exception.UserNotFoundException;
+import com.gnomeland.foodlab.exception.IngredientAssociatedException;
+import com.gnomeland.foodlab.exception.IngredientException;
+import com.gnomeland.foodlab.exception.RecipeException;
+import com.gnomeland.foodlab.exception.UserAssociatedException;
+import com.gnomeland.foodlab.exception.UserException;
+import com.gnomeland.foodlab.exception.ValidationException;
 import com.gnomeland.foodlab.model.Comment;
 import com.gnomeland.foodlab.model.Ingredient;
 import com.gnomeland.foodlab.model.Recipe;
@@ -18,6 +21,7 @@ import com.gnomeland.foodlab.repository.IngredientRepository;
 import com.gnomeland.foodlab.repository.RecipeRepository;
 import com.gnomeland.foodlab.repository.UserRepository;
 import jakarta.transaction.Transactional;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +38,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class RecipeService {
+    private static final String RECIPE_NOT_FOUND_MESSAGE = "The recipe was not found: ";
+    private static final String USER_NOT_FOUND_MESSAGE = "The user was not found: ";
+    private static final String INGREDIENT_NOT_FOUND_MESSAGE = "The ingredient was not found: ";
     private static final String CACHE_KEY = "recipe_ingredient_";
     private final RecipeRepository recipeRepository;
     private final UserRepository userRepository;
@@ -51,20 +58,27 @@ public class RecipeService {
     }
 
     public List<RecipeDto> getRecipes(String name) {
-        return recipeRepository.findAll().stream()
+        List<RecipeDto> recipes =  recipeRepository.findAll().stream()
                 .filter(recipe -> name == null || recipe.getName().equalsIgnoreCase(name))
                 .map(this::convertToDto)
                 .toList();
+        if (recipes.isEmpty()) {
+            throw new RecipeException(RECIPE_NOT_FOUND_MESSAGE + name);
+        }
+
+        return recipes;
     }
 
     public RecipeDto getRecipeById(Integer id) {
         Recipe recipe = recipeRepository.findById(id)
-                .orElseThrow(() -> new RecipeNotFoundException(id));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
         return convertToDto(recipe);
     }
 
     @Transactional
     public RecipeDto addRecipe(RecipeDto recipeDto) {
+        validateRecipeDto(recipeDto, false);
+
         Recipe recipe = convertToEntity(recipeDto);
         return convertToDto(recipeRepository.save(recipe));
     }
@@ -72,7 +86,7 @@ public class RecipeService {
     @Transactional
     public void deleteRecipeById(Integer id) {
         Recipe recipe = recipeRepository.findById(id)
-                .orElseThrow(() -> new RecipeNotFoundException(id));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
 
         for (RecipeIngredient recipeIngredient : recipe.getRecipeIngredients()) {
             Ingredient ingredient = recipeIngredient.getIngredient();
@@ -96,8 +110,10 @@ public class RecipeService {
 
     @Transactional
     public RecipeDto updateRecipe(Integer id, RecipeDto updatedRecipeDto) {
+        validateRecipeDto(updatedRecipeDto, false);
+
         Recipe recipe = recipeRepository.findById(id)
-                .orElseThrow(() -> new RecipeNotFoundException(id));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
 
         // Обновляем основные поля
         recipe.setName(updatedRecipeDto.getName());
@@ -124,7 +140,7 @@ public class RecipeService {
             RecipeIngredient ri = new RecipeIngredient();
             ri.setRecipe(recipe);
             ri.setIngredient(ingredientRepository.findById(ingId)
-                    .orElseThrow(() -> new IllegalArgumentException("Ingredient not found")));
+                    .orElseThrow(() -> new IngredientException(INGREDIENT_NOT_FOUND_MESSAGE + id)));
             ri.setQuantityInGrams(grams);
             recipe.getRecipeIngredients().add(ri);
         });
@@ -143,8 +159,10 @@ public class RecipeService {
 
     @Transactional
     public RecipeDto patchRecipe(Integer id, RecipeDto partialRecipeDto) {
+        validateRecipeDto(partialRecipeDto, true);
+
         Recipe recipe = recipeRepository.findById(id)
-                .orElseThrow(() -> new RecipeNotFoundException(id));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
 
         if (partialRecipeDto.getName() != null) {
             recipe.setName(partialRecipeDto.getName());
@@ -201,13 +219,13 @@ public class RecipeService {
 
     public List<CommentDto> getCommentsByRecipeId(Integer id) {
         Recipe recipe = recipeRepository.findById(id).orElseThrow(()
-                -> new RecipeNotFoundException(id));
+                -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
         return recipe.getComments().stream().map(this::convertToDto).toList();
     }
 
     public List<UserDto> getUsersForRecipe(Integer recipeId) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RecipeNotFoundException(recipeId));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + recipeId));
 
         return recipe.getUsers().stream().map(this::convertToDto).toList();
     }
@@ -215,13 +233,12 @@ public class RecipeService {
     public ResponseEntity<String> addUserToRecipe(Integer recipeId, Integer userId) {
         Recipe recipe = recipeRepository.findById(recipeId)
                 .orElseThrow(()
-                        -> new RecipeNotFoundException(recipeId));
+                        -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + recipeId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+                .orElseThrow(() -> new UserException(USER_NOT_FOUND_MESSAGE + userId));
 
         if (recipe.getUsers().contains(user)) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body("User is already associated with this recipe.");
+            throw new UserAssociatedException("User is already associated with this recipe.");
         }
 
         recipe.getUsers().add(user);
@@ -235,9 +252,9 @@ public class RecipeService {
 
     public ResponseEntity<Void> removeUserFromRecipe(Integer recipeId, Integer userId) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RecipeNotFoundException(recipeId));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + recipeId));
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RecipeNotFoundException(userId));
+                .orElseThrow(() -> new UserException(USER_NOT_FOUND_MESSAGE + userId));
         recipe.getUsers().remove(user);
         user.getSavedRecipes().remove(recipe);
 
@@ -250,16 +267,17 @@ public class RecipeService {
     public ResponseEntity<String> addIngredientToRecipe(Integer recipeId, Integer ingredientId,
                                                         Double quantityInGrams) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RecipeNotFoundException(recipeId));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + recipeId));
         Ingredient ingredient = ingredientRepository.findById(ingredientId)
-                .orElseThrow(() -> new IngredientNotFoundException(ingredientId));
+                .orElseThrow(() ->
+                        new IngredientException(INGREDIENT_NOT_FOUND_MESSAGE + ingredientId));
 
         boolean ingredientExists = recipe.getRecipeIngredients().stream()
                 .anyMatch(ri -> ri.getIngredient().getId().equals(ingredientId));
 
         if (ingredientExists) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body("Ingredient is already associated with this recipe.");
+            throw new IngredientAssociatedException("Ingredient is already "
+                    + "associated with this recipe.");
         }
 
         // Создаем новую связь
@@ -282,12 +300,13 @@ public class RecipeService {
 
     public ResponseEntity<Void> removeIngredientFromRecipe(Integer recipeId, Integer ingredientId) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RecipeNotFoundException(recipeId));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + recipeId));
 
         RecipeIngredient recipeIngredient = recipe.getRecipeIngredients().stream()
                 .filter(ri -> ri.getIngredient().getId().equals(ingredientId))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Ingredient not found in recipe"));
+                .orElseThrow(() ->
+                        new IngredientException(INGREDIENT_NOT_FOUND_MESSAGE + ingredientId));
 
         for (RecipeIngredient recipeIngredients : recipe.getRecipeIngredients()) {
             Ingredient recIngredients = recipeIngredients.getIngredient();
@@ -303,11 +322,64 @@ public class RecipeService {
 
     public List<RecipeIngredientDto> getIngredientsForRecipe(Integer recipeId) {
         Recipe recipe = recipeRepository.findById(recipeId)
-                .orElseThrow(() -> new RecipeNotFoundException(recipeId));
+                .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + recipeId));
 
         return recipe.getRecipeIngredients().stream()
                 .map(this::convertToDto)
                 .toList();
+    }
+
+    private void validateRecipeDto(RecipeDto recipeDto, boolean isPartial) {
+        if (recipeDto == null) {
+            throw new ValidationException("Recipe cannot be null");
+        }
+
+        if (!isPartial) {
+            validateMandatoryFields(recipeDto);
+            validateName(recipeDto.getName());
+            validateDuration(recipeDto.getPreparationTime());
+        } else {
+            if (recipeDto.getName() != null) {
+                validateName(recipeDto.getName());
+            }
+            if (recipeDto.getPreparationTime() != null) {
+                validateDuration(recipeDto.getPreparationTime());
+            }
+        }
+    }
+
+    private void validateMandatoryFields(RecipeDto recipeDto) {
+        if (isNullOrEmpty(recipeDto.getName())) {
+            throw new ValidationException("Name is required");
+        }
+        if (recipeDto.getPreparationTime() == null) {
+            throw new ValidationException("Preparation time is required");
+        }
+    }
+
+    private void validateName(String name) {
+        if (isNullOrEmpty(name)) {
+            throw new ValidationException("Name cannot be empty");
+        }
+        if (name.length() > 50) {
+            throw new ValidationException("Name cannot exceed 50 characters");
+        }
+    }
+
+    private void validateDuration(Duration duration) {
+        if (duration.isNegative()) {
+            throw new ValidationException("Preparation time cannot be negative");
+        }
+        if (duration.toMinutes() < 1) {
+            throw new ValidationException("Preparation time must be at least 1 minute");
+        }
+        if (duration.toHours() > 24) {
+            throw new ValidationException("Preparation time cannot exceed 24 hours");
+        }
+    }
+
+    private boolean isNullOrEmpty(String str) {
+        return str == null || str.trim().isEmpty();
     }
 
     private RecipeDto convertToDto(Recipe recipe, boolean includeUsers, boolean includeComments) {

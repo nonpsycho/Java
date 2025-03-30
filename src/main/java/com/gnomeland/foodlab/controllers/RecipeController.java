@@ -6,9 +6,12 @@ import com.gnomeland.foodlab.dto.RecipeIngredientDto;
 import com.gnomeland.foodlab.dto.UserDto;
 import com.gnomeland.foodlab.repository.RecipeRepository;
 import com.gnomeland.foodlab.service.RecipeService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/recipes")
+@Tag(name = "Comment Controller", description = "API for managing recipes")
 public class RecipeController {
 
     private final RecipeService recipeService;
@@ -35,62 +39,135 @@ public class RecipeController {
         this.recipeRepository = recipeRepository;
     }
 
+    @Operation(summary = "Search for a recipe by filter",
+            description = "Returns all recipes by name")
+    @ApiResponses(value = { @ApiResponse (responseCode = "200",
+            description = "The found recipes are returned"), @ApiResponse (responseCode = "404",
+            description = "Recipes not found"),
+    })
     @GetMapping
-    public List<RecipeDto> getRecipes(
+    public  ResponseEntity<List<RecipeDto>> getRecipes(
             @RequestParam(name = "name", required = false) final String name
     ) {
-        return recipeService.getRecipes(name);
+        List<RecipeDto> recipes = recipeService.getRecipes(name);
+        return recipes.isEmpty() ? ResponseEntity.status(404).body(recipes)
+                : ResponseEntity.ok(recipes);
     }
 
+    @Operation(summary = "Getting a recipe by ID", description = "Returns the recipe by ID")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "The recipe is found"), @ApiResponse(responseCode = "404",
+            description = "A recipe with this ID was not found.")
+    })
     @GetMapping("/{id}")
-    public RecipeDto getRecipeById(@PathVariable final Integer id) {
-        return recipeService.getRecipeById(id);
+    public ResponseEntity<RecipeDto> getRecipeById(@PathVariable final Integer id) {
+        RecipeDto recipe = recipeService.getRecipeById(id);
+        return ResponseEntity.ok(recipe);
     }
 
+    @Operation(summary = "Getting comments for a recipe by its ID",
+            description = "Returns comments for a recipe with an ID")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "Comments returned"), @ApiResponse(responseCode = "404",
+            description = "A recipe with this ID was not found.")
+    })
     @GetMapping("/{id}/comments")
-    public List<CommentDto> getCommentsByRecipeId(@PathVariable final Integer id) {
-        return recipeService.getCommentsByRecipeId(id);
+    public ResponseEntity<List<CommentDto>> getCommentsByRecipeId(@PathVariable final Integer id) {
+        List<CommentDto> comments = recipeService.getCommentsByRecipeId(id);
+        return ResponseEntity.ok(comments);
     }
 
+    @Operation(summary = "Adding a new recipe", description = "Creates a new recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "201",
+            description = "The recipe was added successfully"), @ApiResponse(responseCode = "400",
+            description = "Invalid request"), @ApiResponse(responseCode = "404",
+            description = "Such a recipe already exists")
+    })
     @PostMapping
-    public RecipeDto addRecipe(@RequestBody RecipeDto recipeDto) {
-        return recipeService.addRecipe(recipeDto);
+    public ResponseEntity<RecipeDto> addRecipe(@RequestBody RecipeDto recipeDto) {
+        RecipeDto newRecipe = recipeService.addRecipe(recipeDto);
+        return ResponseEntity.status(201).body(newRecipe);
     }
 
+    @Operation(summary = "Deleting a recipe by its ID", description = "Delete a recipe with an ID")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "The recipe was deleted successfully"), @ApiResponse(responseCode = "404",
+            description = "A recipe with this ID was not found.")
+    })
     @DeleteMapping("/{id}")
     public void deleteRecipe(@PathVariable Integer id) {
         recipeService.deleteRecipeById(id);
     }
 
+    @Operation(summary = "Changing the recipe",
+            description = "Changes all information about the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "The recipe was changed successfully"), @ApiResponse(responseCode = "400",
+            description = "Invalid request"),
+    })
     @PutMapping("/{id}")
-    public RecipeDto updateRecipe(@PathVariable Integer id,
+    public ResponseEntity<RecipeDto> updateRecipe(@PathVariable Integer id,
                                   @RequestBody RecipeDto updatedRecipeDto) {
-        return recipeService.updateRecipe(id, updatedRecipeDto);
+        RecipeDto updateRecipe = recipeService.updateRecipe(id, updatedRecipeDto);
+        return ResponseEntity.status(200).body(updateRecipe);
     }
 
+    @Operation(summary = "Changing the recipe",
+            description = "Changes information about the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "The recipe was changed successfully"), @ApiResponse(responseCode = "400",
+            description = "Invalid request"),
+    })
     @PatchMapping("/{id}")
-    public RecipeDto patchRecipe(@PathVariable Integer id,
+    public ResponseEntity<RecipeDto> patchRecipe(@PathVariable Integer id,
                                  @RequestBody RecipeDto partialRecipeDto) {
-        return recipeService.patchRecipe(id, partialRecipeDto);
+        RecipeDto patchedRecipe = recipeService.patchRecipe(id, partialRecipeDto);
+        return ResponseEntity.ok(patchedRecipe);
     }
 
+    @Operation(summary = "Adding a user to a recipe",
+            description = "Connects the user and the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "201",
+            description = "The user was added successfully"), @ApiResponse(responseCode = "404",
+            description = "The recipe already has such a user."),
+    })
     @PostMapping("/{recipeId}/users/{userId}")
     public ResponseEntity<String> addUserToRecipe(@PathVariable Integer recipeId,
                                                   @PathVariable Integer userId) {
         return recipeService.addUserToRecipe(recipeId, userId);
     }
 
+    @Operation(summary = "Removing a user from a recipe",
+            description = "Removes the connection between the user and the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "204",
+            description = "The user was deleted successfully"), @ApiResponse(responseCode = "404",
+            description = "The user or recipe was not found")
+    })
     @DeleteMapping("/{recipeId}/users/{userId}")
     public ResponseEntity<Void> removeUserFromRecipe(@PathVariable Integer recipeId,
                                                      @PathVariable Integer userId) {
         return recipeService.removeUserFromRecipe(recipeId, userId);
     }
 
+    @Operation(summary = "Search for all users for a recipe",
+            description = "Returns all users associated with the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "The list of users has been returned"), @ApiResponse(responseCode = "404",
+            description = "The recipe was not found"),
+    })
     @GetMapping("/{recipeId}/users")
     public ResponseEntity<List<UserDto>> getUsersForRecipe(@PathVariable Integer recipeId) {
-        return ResponseEntity.ok(recipeService.getUsersForRecipe(recipeId));
+        List<UserDto> users = recipeService.getUsersForRecipe(recipeId);
+        return ResponseEntity.ok(users);
     }
 
+    @Operation(summary = "Search recipes by ingredient (JPA)",
+            description = "Returns recipes containing specified ingredient using JPA query")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "Recipes found successfully"), @ApiResponse(responseCode = "204",
+            description = "No recipes found with this ingredient"),
+        @ApiResponse(responseCode = "400", description = "Invalid ingredient name format")
+    })
     @GetMapping("/recipe-by-ingredient")
     public ResponseEntity<List<RecipeDto>> searchRecipesByIngredient(
             @RequestParam String ingredientName) {
@@ -99,6 +176,13 @@ public class RecipeController {
         return recipes.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(recipes);
     }
 
+    @Operation(summary = "Search recipes by ingredient (Native SQL)",
+            description = "Returns recipes containing specified ingredient using native SQL query")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "Recipes found successfully"), @ApiResponse(responseCode = "204",
+            description = "No recipes found with this ingredient"),
+        @ApiResponse(responseCode = "400", description = "Invalid ingredient name format")
+    })
     @GetMapping("/recipe-by-ingredient-native")
     public ResponseEntity<List<RecipeDto>> searchRecipesByIngredientNative(
             @RequestParam String ingredientName) {
@@ -107,6 +191,13 @@ public class RecipeController {
         return recipes.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(recipes);
     }
 
+    @Operation(summary = "Adding a ingredient to a recipe",
+            description = "Connects the ingredient and the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "201",
+            description = "The ingredient was added successfully"),
+        @ApiResponse(responseCode = "404",
+                description = "The recipe already has such a ingredient."),
+    })
     @PostMapping("/{recipeId}/ingredients/{ingredientId}")
     public ResponseEntity<String> addIngredientToRecipe(
             @PathVariable Integer recipeId,
@@ -115,6 +206,13 @@ public class RecipeController {
         return recipeService.addIngredientToRecipe(recipeId, ingredientId, quantityInGrams);
     }
 
+    @Operation(summary = "Removing a ingredient from a recipe",
+            description = "Removes the connection between the ingredient and the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "204",
+            description = "The ingredient was deleted successfully"),
+        @ApiResponse(responseCode = "404",
+            description = "The ingredient or recipe was not found")
+    })
     @DeleteMapping("/{recipeId}/ingredients/{ingredientId}")
     public ResponseEntity<Void> removeIngredientFromRecipe(
             @PathVariable Integer recipeId,
@@ -122,10 +220,16 @@ public class RecipeController {
         return recipeService.removeIngredientFromRecipe(recipeId, ingredientId);
     }
 
+    @Operation(summary = "Search for all ingredients for a recipe",
+            description = "Returns all ingredients associated with the recipe")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "The list of ingredients has been returned"),
+        @ApiResponse(responseCode = "404", description = "The recipe was not found"),
+    })
     @GetMapping("/{recipeId}/ingredients")
     public ResponseEntity<List<RecipeIngredientDto>> getIngredientsForRecipe(@PathVariable
                                                                                  Integer recipeId) {
         List<RecipeIngredientDto> ingredients = recipeService.getIngredientsForRecipe(recipeId);
-        return new ResponseEntity<>(ingredients, HttpStatus.OK);
+        return ResponseEntity.ok(ingredients);
     }
 }

@@ -2,10 +2,13 @@ package com.gnomeland.foodlab.controllers;
 
 import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.service.CommentService;
-import com.gnomeland.foodlab.service.RecipeService;
-import com.gnomeland.foodlab.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -17,53 +20,71 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/comments")
+@Tag(name = "Comment Controller", description = "API for managing comments")
 public class CommentController {
 
     private final CommentService commentService;
-    private final UserService userService;
-    private final RecipeService recipeService;
 
     @Autowired
-    public CommentController(CommentService commentService,
-                             UserService userService, RecipeService recipeService) {
+    public CommentController(CommentService commentService) {
         this.commentService = commentService;
-        this.userService = userService;
-        this.recipeService = recipeService;
     }
 
+    @Operation(summary = "Adding a new comment", description = "Creates a new comment")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "Comment added successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "404",
+                description = "The user or recipe with this ID was not found.")
+    })
     @PostMapping
-    public CommentDto addComment(@RequestBody CommentDto commentDto) {
+    public ResponseEntity<String> addComment(@RequestBody CommentDto commentDto) {
         return commentService.addComment(commentDto);
     }
 
+    @Operation(summary = "Output of all comments", description = "Returns all comments")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Comments found"),
+        @ApiResponse(responseCode = "404", description = "There are no comments")
+    })
     @GetMapping
-    public List<CommentDto> getAllComments() {
-        return commentService.getAllComments();
+    public ResponseEntity<List<CommentDto>> getAllComments() {
+        List<CommentDto> comments = commentService.getAllComments().getBody();
+        return ResponseEntity.ok(comments);
     }
 
+    @Operation(summary = "Getting comments by ID", description = "Returns a comment by its ID")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200", description = "Comments found"),
+        @ApiResponse(responseCode = "404", description = "A comment with this ID was not found.")
+    })
     @GetMapping("/{id}")
-    public CommentDto getCommentById(@PathVariable Integer id) {
-        return commentService.getCommentById(id);
+    public ResponseEntity<CommentDto> getCommentById(@PathVariable Integer id) {
+        CommentDto comment = commentService.getCommentById(id).getBody();
+        return ResponseEntity.ok(comment);
     }
 
+    @Operation(summary = "Changing a comment", description = "Changes the content of the comment")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "Comment changed successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid request"),
+        @ApiResponse(responseCode = "404",
+                    description = "A comment with this ID was not found.")
+    })
     @PatchMapping("/{id}")
-    public CommentDto patchComment(@PathVariable Integer id,
+    public  ResponseEntity<CommentDto> patchComment(@PathVariable Integer id,
                                    @RequestBody CommentDto partialCommentDto) {
-        return commentService.updateComment(id, partialCommentDto);
+        CommentDto updatedComment = commentService.updateComment(id, partialCommentDto);
+        return ResponseEntity.ok(updatedComment);
     }
 
+    @Operation(summary = "Deleting a comment", description = "Deleting a comment")
+    @ApiResponses(value = { @ApiResponse(responseCode = "200",
+            description = "Comment deleted successfully"),
+        @ApiResponse(responseCode = "404", description = "A comment with this ID was not found.")
+    })
     @DeleteMapping("/{id}")
     public void deleteComment(@PathVariable Integer id) {
+
         commentService.deleteComment(id);
     }
-
-    @GetMapping("/recipe/{recipeId}")
-    public List<CommentDto> getCommentsByRecipeId(@PathVariable Integer recipeId) {
-        return recipeService.getCommentsByRecipeId(recipeId);
-    }
-
-    @GetMapping("/user/{userId}")
-    public List<CommentDto> getCommentsByUserId(@PathVariable Integer userId) {
-        return userService.getCommentsByUserId(userId);
-    }
 }
+

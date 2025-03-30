@@ -9,8 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -25,14 +23,8 @@ public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-
-    @NotBlank(message = "Name is mandatory")
     private String username;
-
-    @Email(message = "Email should be valid")
-    @NotBlank(message = "Email is mandatory")
     private String email;
-
     private String password;
 
     @OneToMany(mappedBy = "userId", fetch = FetchType.LAZY,
