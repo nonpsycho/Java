@@ -3,6 +3,7 @@ package com.gnomeland.foodlab.controllers;
 import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.dto.UserDto;
 import com.gnomeland.foodlab.service.UserService;
+import com.gnomeland.foodlab.validation.UserValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -80,6 +81,7 @@ public class UserController {
     })
     @PostMapping
     public ResponseEntity<UserDto> addUser(@Valid @RequestBody UserDto userDto) {
+        UserValidator.validateUserDto(userDto, false);
         UserDto addedUser = userService.addUser(userDto);
         return ResponseEntity.status(201).body(addedUser);
     }
@@ -103,6 +105,7 @@ public class UserController {
     @PutMapping("/{id}")
     public ResponseEntity<UserDto> updateUser(@PathVariable Integer id,
                                               @Valid @RequestBody UserDto updatedUserDto) {
+        UserValidator.validateUserDto(updatedUserDto, false);
         UserDto updatedUser = userService.updateUser(id, updatedUserDto);
         return ResponseEntity.ok(updatedUser);
     }
@@ -116,6 +119,7 @@ public class UserController {
     @PatchMapping("/{id}")
     public ResponseEntity<UserDto> patchUser(@PathVariable Integer id,
                                              @Valid @RequestBody UserDto partialUserDto) {
+        UserValidator.validateUserDto(partialUserDto, true);
         UserDto updatedUser = userService.patchUser(id, partialUserDto);
         return ResponseEntity.ok(updatedUser);
     }

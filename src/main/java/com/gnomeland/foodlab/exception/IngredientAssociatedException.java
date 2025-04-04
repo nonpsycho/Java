@@ -5,3 +5,4 @@ public class IngredientAssociatedException extends RuntimeException {
         super(message);
     }
 }
+

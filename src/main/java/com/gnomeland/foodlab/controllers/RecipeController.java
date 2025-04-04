@@ -6,6 +6,7 @@ import com.gnomeland.foodlab.dto.RecipeIngredientDto;
 import com.gnomeland.foodlab.dto.UserDto;
 import com.gnomeland.foodlab.repository.RecipeRepository;
 import com.gnomeland.foodlab.service.RecipeService;
+import com.gnomeland.foodlab.validation.RecipeValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -29,7 +30,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/recipes")
 @Tag(name = "Comment Controller", description = "API for managing recipes")
 public class RecipeController {
-
     private final RecipeService recipeService;
     private final RecipeRepository recipeRepository;
 
@@ -85,6 +85,7 @@ public class RecipeController {
     })
     @PostMapping
     public ResponseEntity<RecipeDto> addRecipe(@RequestBody RecipeDto recipeDto) {
+        RecipeValidator.validateRecipeDto(recipeDto, false);
         RecipeDto newRecipe = recipeService.addRecipe(recipeDto);
         return ResponseEntity.status(201).body(newRecipe);
     }
@@ -108,6 +109,7 @@ public class RecipeController {
     @PutMapping("/{id}")
     public ResponseEntity<RecipeDto> updateRecipe(@PathVariable Integer id,
                                   @RequestBody RecipeDto updatedRecipeDto) {
+        RecipeValidator.validateRecipeDto(updatedRecipeDto, false);
         RecipeDto updateRecipe = recipeService.updateRecipe(id, updatedRecipeDto);
         return ResponseEntity.status(200).body(updateRecipe);
     }
@@ -121,6 +123,7 @@ public class RecipeController {
     @PatchMapping("/{id}")
     public ResponseEntity<RecipeDto> patchRecipe(@PathVariable Integer id,
                                  @RequestBody RecipeDto partialRecipeDto) {
+        RecipeValidator.validateRecipeDto(partialRecipeDto, true);
         RecipeDto patchedRecipe = recipeService.patchRecipe(id, partialRecipeDto);
         return ResponseEntity.ok(patchedRecipe);
     }
@@ -233,3 +236,4 @@ public class RecipeController {
         return ResponseEntity.ok(ingredients);
     }
 }
+

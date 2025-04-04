@@ -4,7 +4,6 @@ import com.gnomeland.foodlab.dto.CommentDto;
 import com.gnomeland.foodlab.dto.RecipeDto;
 import com.gnomeland.foodlab.dto.UserDto;
 import com.gnomeland.foodlab.exception.UserException;
-import com.gnomeland.foodlab.exception.ValidationException;
 import com.gnomeland.foodlab.model.Comment;
 import com.gnomeland.foodlab.model.Recipe;
 import com.gnomeland.foodlab.model.User;
@@ -56,9 +55,6 @@ public class UserService {
     }
 
     public UserDto addUser(UserDto userDto) {
-
-        validateUser(userDto, false);
-
         User user = convertToEntity(userDto);
         if (!userRepository.findByUsernameIgnoreCase(user.getUsername()).isEmpty()) {
             throw new IllegalArgumentException(USER_EXISTS_MESSAGE + user.getUsername());
@@ -87,9 +83,6 @@ public class UserService {
 
     @Transactional
     public UserDto updateUser(Integer id, UserDto updatedUserDto) {
-
-        validateUser(updatedUserDto, false);
-
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserException(USER_NOT_FOUND_MESSAGE + id));
 
@@ -103,9 +96,6 @@ public class UserService {
     }
 
     public UserDto patchUser(Integer id, UserDto partialUserDto) {
-
-        validateUser(partialUserDto, true);
-
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserException(USER_NOT_FOUND_MESSAGE + id));
 
@@ -128,58 +118,6 @@ public class UserService {
         User user = userRepository.findById(id).orElseThrow(()
                 -> new UserException(USER_NOT_FOUND_MESSAGE + id));
         return user.getComments().stream().map(this::convertToDto).toList();
-    }
-
-    private void validateUser(UserDto userDto, boolean isPartial) {
-        if (!isPartial) {
-            validateNameAndEmail(userDto.getUsername(), userDto.getEmail());
-            validatePassword(userDto.getPassword());
-        } else {
-            if (isInvalidName(userDto.getUsername())
-                    && isInvalidEmail(userDto.getEmail())
-                    && isInvalidPassword(userDto.getPassword())) {
-                throw new ValidationException("Incorrect user changes");
-            }
-        }
-    }
-
-    private void validateNameAndEmail(String name, String email) {
-        if (name == null || name.trim().isEmpty() || name.length() < 2 || name.length() > 20) {
-            throw new ValidationException("The name must be"
-                    + "and must be between 2 and 20 characters long.");
-        }
-        if (email == null || email.trim().isEmpty() || isValidEmail(email)) {
-            throw new ValidationException("The mail has not been entered "
-                    + "or the address format is not respected");
-        }
-
-    }
-
-    private void validatePassword(String password) {
-        if (password == null || password.trim().isEmpty()) {
-            throw new ValidationException("A password is required");
-        }
-        if (password.length() < 5 || password.length() > 20) {
-            throw new ValidationException("The password must be between 5 and 20 characters long.");
-        }
-    }
-
-    private boolean isInvalidName(String name) {
-        return name == null || name.trim().isEmpty() || name.length() < 2 || name.length() > 20;
-    }
-
-    private boolean isInvalidEmail(String email) {
-        return email == null || email.trim().isEmpty() || !isValidEmail(email);
-    }
-
-    private boolean isInvalidPassword(String password) {
-        return password == null || password.trim().isEmpty()
-                || password.length() < 5 || password.length() > 20;
-    }
-
-    private boolean isValidEmail(String email) {
-        String emailRegex = "^[A-Za-z0-9+_.-]+@(.+)$";
-        return !email.matches(emailRegex);
     }
 
     private UserDto convertToDto(User user) {

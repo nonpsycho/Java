@@ -3,6 +3,7 @@ package com.gnomeland.foodlab.controllers;
 import com.gnomeland.foodlab.dto.IngredientDto;
 import com.gnomeland.foodlab.dto.RecipeIngredientDto;
 import com.gnomeland.foodlab.service.IngredientService;
+import com.gnomeland.foodlab.validation.IngredientValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -81,6 +82,7 @@ public class IngredientController {
     @PostMapping
     public ResponseEntity<IngredientDto> createIngredient(@RequestBody
                                                               IngredientDto ingredientDto) {
+        IngredientValidator.validateIngredientDto(ingredientDto, false);
         IngredientDto createdIngredient = ingredientService.addIngredient(ingredientDto);
         return ResponseEntity.status(201).body(createdIngredient);
     }
@@ -96,6 +98,7 @@ public class IngredientController {
     public ResponseEntity<IngredientDto> updateIngredient(
             @PathVariable Integer id,
             @RequestBody IngredientDto ingredientDto) {
+        IngredientValidator.validateIngredientDto(ingredientDto, false);
         IngredientDto updatedIngredient = ingredientService.updateIngredient(id, ingredientDto);
         return ResponseEntity.ok(updatedIngredient);
     }
@@ -111,6 +114,7 @@ public class IngredientController {
     public ResponseEntity<IngredientDto> patchIngredient(
             @PathVariable Integer id,
             @RequestBody IngredientDto partialIngredientDto) {
+        IngredientValidator.validateIngredientDto(partialIngredientDto, true);
         IngredientDto updatedIngredient = ingredientService
                 .patchIngredient(id, partialIngredientDto);
         return ResponseEntity.ok(updatedIngredient);

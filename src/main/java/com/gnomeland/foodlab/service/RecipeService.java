@@ -11,7 +11,6 @@ import com.gnomeland.foodlab.exception.IngredientException;
 import com.gnomeland.foodlab.exception.RecipeException;
 import com.gnomeland.foodlab.exception.UserAssociatedException;
 import com.gnomeland.foodlab.exception.UserException;
-import com.gnomeland.foodlab.exception.ValidationException;
 import com.gnomeland.foodlab.model.Comment;
 import com.gnomeland.foodlab.model.Ingredient;
 import com.gnomeland.foodlab.model.Recipe;
@@ -21,7 +20,6 @@ import com.gnomeland.foodlab.repository.IngredientRepository;
 import com.gnomeland.foodlab.repository.RecipeRepository;
 import com.gnomeland.foodlab.repository.UserRepository;
 import jakarta.transaction.Transactional;
-import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -77,8 +75,6 @@ public class RecipeService {
 
     @Transactional
     public RecipeDto addRecipe(RecipeDto recipeDto) {
-        validateRecipeDto(recipeDto, false);
-
         Recipe recipe = convertToEntity(recipeDto);
         return convertToDto(recipeRepository.save(recipe));
     }
@@ -110,8 +106,6 @@ public class RecipeService {
 
     @Transactional
     public RecipeDto updateRecipe(Integer id, RecipeDto updatedRecipeDto) {
-        validateRecipeDto(updatedRecipeDto, false);
-
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
 
@@ -132,10 +126,9 @@ public class RecipeService {
                 newIngredients.remove(ri.getIngredient().getId());
                 return false;
             }
-            return true; // Удаляем ингредиенты, которых нет в DTO
+            return true;
         });
 
-        // 2. Добавляем новые ингредиенты
         newIngredients.forEach((ingId, grams) -> {
             RecipeIngredient ri = new RecipeIngredient();
             ri.setRecipe(recipe);
@@ -159,8 +152,6 @@ public class RecipeService {
 
     @Transactional
     public RecipeDto patchRecipe(Integer id, RecipeDto partialRecipeDto) {
-        validateRecipeDto(partialRecipeDto, true);
-
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
 
@@ -327,59 +318,6 @@ public class RecipeService {
         return recipe.getRecipeIngredients().stream()
                 .map(this::convertToDto)
                 .toList();
-    }
-
-    private void validateRecipeDto(RecipeDto recipeDto, boolean isPartial) {
-        if (recipeDto == null) {
-            throw new ValidationException("Recipe cannot be null");
-        }
-
-        if (!isPartial) {
-            validateMandatoryFields(recipeDto);
-            validateName(recipeDto.getName());
-            validateDuration(recipeDto.getPreparationTime());
-        } else {
-            if (recipeDto.getName() != null) {
-                validateName(recipeDto.getName());
-            }
-            if (recipeDto.getPreparationTime() != null) {
-                validateDuration(recipeDto.getPreparationTime());
-            }
-        }
-    }
-
-    private void validateMandatoryFields(RecipeDto recipeDto) {
-        if (isNullOrEmpty(recipeDto.getName())) {
-            throw new ValidationException("Name is required");
-        }
-        if (recipeDto.getPreparationTime() == null) {
-            throw new ValidationException("Preparation time is required");
-        }
-    }
-
-    private void validateName(String name) {
-        if (isNullOrEmpty(name)) {
-            throw new ValidationException("Name cannot be empty");
-        }
-        if (name.length() > 50) {
-            throw new ValidationException("Name cannot exceed 50 characters");
-        }
-    }
-
-    private void validateDuration(Duration duration) {
-        if (duration.isNegative()) {
-            throw new ValidationException("Preparation time cannot be negative");
-        }
-        if (duration.toMinutes() < 1) {
-            throw new ValidationException("Preparation time must be at least 1 minute");
-        }
-        if (duration.toHours() > 24) {
-            throw new ValidationException("Preparation time cannot exceed 24 hours");
-        }
-    }
-
-    private boolean isNullOrEmpty(String str) {
-        return str == null || str.trim().isEmpty();
     }
 
     private RecipeDto convertToDto(Recipe recipe, boolean includeUsers, boolean includeComments) {

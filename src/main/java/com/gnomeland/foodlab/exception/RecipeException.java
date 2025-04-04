@@ -11,3 +11,4 @@ public class RecipeException extends RuntimeException {
         this.errorCode = "400";
     }
 }
+
