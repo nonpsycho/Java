@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/recipes")
-@Tag(name = "Comment Controller", description = "API for managing recipes")
+@Tag(name = "Recipe Controller", description = "API for managing recipes")
 public class RecipeController {
     private final RecipeService recipeService;
     private final RecipeRepository recipeRepository;
@@ -88,6 +88,23 @@ public class RecipeController {
         RecipeValidator.validateRecipeDto(recipeDto, false);
         RecipeDto newRecipe = recipeService.addRecipe(recipeDto);
         return ResponseEntity.status(201).body(newRecipe);
+    }
+
+    @Operation(summary = "Bulk add recipes", description = "Adds multiple recipes at once")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Recipes added successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid request data")
+    })
+    @PostMapping("/bulk")
+    public ResponseEntity<List<RecipeDto>> addRecipesBulk(
+            @RequestBody List<RecipeDto> recipeDtos) {
+
+        for (RecipeDto dto : recipeDtos) {
+            RecipeValidator.validateRecipeDto(dto, false);
+        }
+
+        List<RecipeDto> createdRecipes = recipeService.addRecipesBulk(recipeDtos);
+        return ResponseEntity.status(201).body(createdRecipes);
     }
 
     @Operation(summary = "Deleting a recipe by its ID", description = "Delete a recipe with an ID")

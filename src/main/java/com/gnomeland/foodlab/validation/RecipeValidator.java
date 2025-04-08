@@ -5,6 +5,9 @@ import com.gnomeland.foodlab.exception.ValidationException;
 import java.time.Duration;
 
 public class RecipeValidator {
+    private static final int MIN_NAME_LENGTH = 2;
+    private static final int MAX_NAME_LENGTH = 50;
+
     private RecipeValidator() {
         throw new AssertionError("Cannot instantiate utility class");
     }
@@ -41,8 +44,10 @@ public class RecipeValidator {
         if (isNullOrEmpty(name)) {
             throw new ValidationException("Name cannot be empty");
         }
-        if (name.length() > 50) {
-            throw new ValidationException("Name cannot exceed 50 characters");
+        if (name.length() < MIN_NAME_LENGTH || name.length() > MAX_NAME_LENGTH) {
+            throw new ValidationException(String.format(
+                    "Name of recipe length must be between %d and %d characters",
+                    MIN_NAME_LENGTH, MAX_NAME_LENGTH));
         }
     }
 

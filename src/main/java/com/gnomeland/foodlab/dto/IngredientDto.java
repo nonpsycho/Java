@@ -16,3 +16,4 @@ public class IngredientDto {
     private Double carbohydrates;
     private List<RecipeIngredientDto> recipeIngredients;
 }
+

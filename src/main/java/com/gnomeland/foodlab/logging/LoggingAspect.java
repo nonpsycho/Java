@@ -1,6 +1,5 @@
 package com.gnomeland.foodlab.logging;
 
-
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.AfterThrowing;

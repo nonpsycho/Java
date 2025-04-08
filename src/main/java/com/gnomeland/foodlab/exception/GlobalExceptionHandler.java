@@ -28,7 +28,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RecipeException.class)
-    public ResponseEntity<RecipeDto> handleMovieException(RecipeException e) {
+    public ResponseEntity<RecipeDto> handleRecipeException(RecipeException e) {
         RecipeDto errorDto = new RecipeDto();
         errorDto.setName(e.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto); // 404

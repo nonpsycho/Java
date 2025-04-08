@@ -8,7 +8,7 @@ class FoodlabApplicationTests {
 
 	@Test
 	void contextLoads() {
-		/// ///
+		// Этот тест проверяет, загружается ли контекст Spring Boot успешно.
 	}
 
 }

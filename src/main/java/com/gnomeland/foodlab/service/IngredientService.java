@@ -86,13 +86,19 @@ public class IngredientService {
 
     @Transactional
     public ResponseEntity<String> deleteIngredientById(Integer id) {
+        // Проверяем существование ингредиента
+        if (!ingredientRepository.existsById(id)) {
+            throw new IngredientException(INGREDIENT_NOT_FOUND + id);
+        }
+
+        // Проверяем наличие связанных рецептов
         List<RecipeIngredient> recipeIngredients = recipeIngredientRepository
                 .findByIngredientId(id);
         if (!recipeIngredients.isEmpty()) {
-            throw new IngredientException(INGREDIENT_NOT_FOUND + id);
+            throw new IngredientException("Cannot delete ingredient with existing recipes");
         }
-        recipeIngredientRepository.deleteAll(recipeIngredients);
 
+        // Очищаем кэш и удаляем ингредиент
         inMemoryCache.removeAll();
         ingredientRepository.deleteById(id);
 

@@ -80,6 +80,15 @@ public class RecipeService {
     }
 
     @Transactional
+    public List<RecipeDto> addRecipesBulk(List<RecipeDto> recipeDtos) {
+        return recipeDtos.stream()
+                .map(this::convertToEntity)
+                .map(recipeRepository::save)
+                .map(this::convertToDto)
+                .toList();
+    }
+
+    @Transactional
     public void deleteRecipeById(Integer id) {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
