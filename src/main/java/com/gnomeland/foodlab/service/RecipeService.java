@@ -118,17 +118,14 @@ public class RecipeService {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new RecipeException(RECIPE_NOT_FOUND_MESSAGE + id));
 
-        // Обновляем основные поля
         recipe.setName(updatedRecipeDto.getName());
         recipe.setPreparationTime(updatedRecipeDto.getPreparationTime());
 
-        // Создаем Map для новых ингредиентов
         Map<Integer, Double> newIngredients = updatedRecipeDto.getRecipeIngredients().stream()
                 .collect(Collectors.toMap(
                         RecipeIngredientDto::getIngredientId,
                         RecipeIngredientDto::getQuantityInGrams));
 
-        // 1. Обновляем существующие ингредиенты
         recipe.getRecipeIngredients().removeIf(ri -> {
             if (newIngredients.containsKey(ri.getIngredient().getId())) {
                 ri.setQuantityInGrams(newIngredients.get(ri.getIngredient().getId()));
@@ -280,7 +277,6 @@ public class RecipeService {
                     + "associated with this recipe.");
         }
 
-        // Создаем новую связь
         RecipeIngredient recipeIngredient = new RecipeIngredient();
         recipeIngredient.setRecipe(recipe);
         recipeIngredient.setIngredient(ingredient);

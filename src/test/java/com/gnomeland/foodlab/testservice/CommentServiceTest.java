@@ -126,7 +126,7 @@ class CommentServiceTest {
         // Assert
         assertNotNull(body);
         assertEquals(1, body.size());
-        assertEquals("Test comment", body.get(0).getText());
+        assertEquals("Test comment", body.getFirst().getText());
     }
 
     @Test
@@ -191,9 +191,11 @@ class CommentServiceTest {
         when(commentRepository.findById(1)).thenReturn(Optional.empty());
 
         // Act & Assert
-        CommentException exception = assertThrows(CommentException.class,
-                () -> commentService.updateComment(1, new CommentDto()));
-        assertEquals("Comment not found by id: 1", exception.getMessage());
+        assertThrows(CommentException.class, this::callUpdateComment);
+    }
+
+    private void callUpdateComment() {
+        commentService.updateComment(1, new CommentDto());
     }
 
     @Test

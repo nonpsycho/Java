@@ -12,6 +12,7 @@ import com.gnomeland.foodlab.repository.RecipeIngredientRepository;
 import com.gnomeland.foodlab.service.IngredientService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -332,5 +333,147 @@ class IngredientServiceTest {
 
         // Assert
         assertNull(dto.getRecipeIngredients());
+    }
+
+    @Test
+    void patchIngredient_ShouldUpdateOnlyFats() {
+        // Arrange
+        Ingredient existing = createTestIngredient();
+        IngredientDto partialDto = new IngredientDto();
+        partialDto.setFats(15.0);
+
+        when(ingredientRepository.findById(1)).thenReturn(Optional.of(existing));
+        when(ingredientRepository.save(any())).thenReturn(existing);
+
+        // Act
+        IngredientDto result = ingredientService.patchIngredient(1, partialDto);
+
+        // Assert
+        assertEquals(15.0, result.getFats());
+        assertEquals(10.0, result.getProteins()); // Белки не изменились
+        assertEquals(20.0, result.getCarbohydrates()); // Углеводы не изменились
+        assertEquals("Test Ingredient", result.getName()); // Имя не изменилось
+    }
+
+    @Test
+    void patchIngredient_ShouldUpdateOnlyCarbohydrates() {
+        // Arrange
+        Ingredient existing = createTestIngredient();
+        IngredientDto partialDto = new IngredientDto();
+        partialDto.setCarbohydrates(30.0);
+
+        when(ingredientRepository.findById(1)).thenReturn(Optional.of(existing));
+        when(ingredientRepository.save(any())).thenReturn(existing);
+
+        // Act
+        IngredientDto result = ingredientService.patchIngredient(1, partialDto);
+
+        // Assert
+        assertEquals(30.0, result.getCarbohydrates());
+        assertEquals(10.0, result.getProteins()); // Белки не изменились
+        assertEquals(5.0, result.getFats()); // Жиры не изменились
+    }
+
+    @Test
+    void patchIngredient_ShouldUpdateMultipleFields() {
+        // Arrange
+        Ingredient existing = createTestIngredient();
+        IngredientDto partialDto = new IngredientDto();
+        partialDto.setFats(8.0);
+        partialDto.setCarbohydrates(25.0);
+
+        when(ingredientRepository.findById(1)).thenReturn(Optional.of(existing));
+        when(ingredientRepository.save(any())).thenReturn(existing);
+
+        // Act
+        IngredientDto result = ingredientService.patchIngredient(1, partialDto);
+
+        // Assert
+        assertEquals(8.0, result.getFats());
+        assertEquals(25.0, result.getCarbohydrates());
+        assertEquals(10.0, result.getProteins()); // Белки не изменились
+    }
+
+    @Test
+    void patchIngredient_ShouldUpdateCacheWhenNameChanged() {
+        // Arrange
+        Ingredient existing = createTestIngredient();
+        IngredientDto partialDto = new IngredientDto();
+        partialDto.setName("New Name");
+
+        when(ingredientRepository.findById(1)).thenReturn(Optional.of(existing));
+        when(ingredientRepository.save(any())).thenReturn(existing);
+
+        // Act
+        ingredientService.patchIngredient(1, partialDto);
+
+        // Assert
+        verify(inMemoryCache).remove(CACHE_KEY_RECIPE_INGREDIENT_PREFIX + "Test Ingredient");
+        verify(inMemoryCache).remove(CACHE_KEY_RECIPE_INGREDIENT_PREFIX + "New Name");
+    }
+
+    @Test
+    void patchIngredient_ShouldThrowExceptionWhenIngredientNotFound() {
+        // Arrange
+        when(ingredientRepository.findById(1)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThrows(IngredientException.class, this::callPatchIngredient);
+    }
+
+    private void callPatchIngredient() {
+        ingredientService.patchIngredient(1, new IngredientDto());
+    }
+
+    @Test
+    void patchIngredient_ShouldHandleNullDto() {
+        // Arrange
+        Ingredient existing = createTestIngredient();
+        when(ingredientRepository.findById(1)).thenReturn(Optional.of(existing));
+
+        // Act & Assert
+        assertThrows(NullPointerException.class, () ->
+                ingredientService.patchIngredient(1, null));
+    }
+
+
+    @Test
+    void deleteIngredientById_ShouldCheckExistenceBeforeCheckingRecipes() {
+        // Arrange
+        when(ingredientRepository.existsById(1)).thenReturn(false);
+
+        // Act & Assert
+        assertThrows(IngredientException.class, () -> ingredientService.deleteIngredientById(1));
+
+        // Verify recipe check wasn't called if ingredient doesn't exist
+        verify(recipeIngredientRepository, never()).findByIngredientId(any());
+    }
+
+    @Test
+    void deleteIngredientById_ShouldNotProceedIfIngredientDoesNotExist() {
+        // Arrange
+        when(ingredientRepository.existsById(1)).thenReturn(false);
+
+        // Act & Assert
+        assertThrows(IngredientException.class, () -> ingredientService.deleteIngredientById(1));
+
+        // Verify no further operations were attempted
+        verify(recipeIngredientRepository, never()).findByIngredientId(any());
+        verify(inMemoryCache, never()).removeAll();
+        verify(ingredientRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void deleteIngredientById_ShouldCheckExistenceFirst() {
+        // Arrange
+        when(ingredientRepository.existsById(1)).thenReturn(false);
+
+        // Act & Assert
+        assertThrows(IngredientException.class, () -> ingredientService.deleteIngredientById(1));
+
+        // Verify the order of operations - existence check comes first
+        InOrder inOrder = inOrder(ingredientRepository, recipeIngredientRepository);
+        inOrder.verify(ingredientRepository).existsById(1);
+        inOrder.verify(recipeIngredientRepository, never()).findByIngredientId(any());
     }
 }

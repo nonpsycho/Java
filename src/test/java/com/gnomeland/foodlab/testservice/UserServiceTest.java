@@ -10,10 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
-
 import java.util.*;
-import java.util.stream.Collectors;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -73,7 +70,7 @@ class UserServiceTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals("testuser", result.get(0).getUsername());
+        assertEquals("testuser", result.getFirst().getUsername());
     }
 
     @Test
@@ -275,7 +272,7 @@ class UserServiceTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals("Test comment", result.get(0).getText());
+        assertEquals("Test comment", result.getFirst().getText());
     }
 
     @Test
@@ -304,4 +301,55 @@ class UserServiceTest {
         assertEquals(1, result.getSavedRecipes().size());
         assertEquals(1, result.getComments().size());
     }
+
+    @Test
+    void patchUser_shouldNotModifyOtherUserFields() {
+        // Arrange
+        UserDto partialDto = new UserDto();
+        partialDto.setUsername("newusername");
+
+        Set<Recipe> savedRecipes = new HashSet<>(user.getSavedRecipes());
+        List<Comment> comments = new ArrayList<>(user.getComments());
+
+        when(userRepository.findById(1)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        // Act
+        userService.patchUser(1, partialDto); // Убрано присваивание result
+
+        // Assert
+        assertEquals(savedRecipes, user.getSavedRecipes());
+        assertEquals(comments, user.getComments());
+    }
+
+    @Test
+    void patchUser_shouldNotModifyOtherUserFields2() {
+        UserDto partialUserDto = new UserDto();
+        partialUserDto.setEmail("shizognome@gmail.com");
+
+        when(userRepository.findById(1)).thenReturn(Optional.of(user));
+        when(userRepository.save(any())).thenReturn(user);
+
+        UserDto patchedUser = userService.patchUser(1, partialUserDto);
+
+        assertNotNull(patchedUser);
+        assertEquals("shizognome@gmail.com", patchedUser.getEmail());
+    }
+
+    @Test
+    void patchUser_shouldNotModifyOtherUserFields3() {
+        UserDto partialUserDto = new UserDto();
+        partialUserDto.setPassword("email1323");
+
+        when(userRepository.findById(1)).thenReturn(Optional.of(user));
+        when(userRepository.save(any())).thenReturn(user);
+
+        UserDto patchedUser = userService.patchUser(1, partialUserDto);
+
+        assertNotNull(patchedUser);
+        assertNull(patchedUser.getPassword());
+    }
+
+
 }
+

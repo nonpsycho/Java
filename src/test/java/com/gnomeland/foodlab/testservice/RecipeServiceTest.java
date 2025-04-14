@@ -14,11 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
 import java.time.Duration;
 import java.util.*;
-import java.util.function.Function;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -92,13 +89,13 @@ class RecipeServiceTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals("Test Recipe", result.get(0).getName());
+        assertEquals("Test Recipe", result.getFirst().getName());
     }
 
     @Test
     void getRecipes_shouldReturnAllRecipes_whenNameNotProvided() {
         // Arrange
-        when(recipeRepository.findAll()).thenReturn(Arrays.asList(recipe));
+        when(recipeRepository.findAll()).thenReturn(List.of(recipe)); // Используем List.of() вместо Arrays.asList()
 
         // Act
         List<RecipeDto> result = recipeService.getRecipes(null);
@@ -204,7 +201,7 @@ class RecipeServiceTest {
         when(recipeRepository.save(any(Recipe.class))).thenReturn(recipe);
 
         // Act
-        RecipeDto result = recipeService.updateRecipe(1, updatedDto);
+        recipeService.updateRecipe(1, updatedDto); // Убрана неиспользуемая переменная result
 
         // Assert
         assertEquals("Updated Recipe", recipe.getName());
@@ -225,7 +222,7 @@ class RecipeServiceTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals("Test Recipe", result.get(0).getName());
+        assertEquals("Test Recipe", result.getFirst().getName());
     }
 
     @Test
@@ -451,7 +448,7 @@ class RecipeServiceTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals("Test comment", result.get(0).getText());
+        assertEquals("Test comment", result.getFirst().getText());
     }
 
     @Test
@@ -476,7 +473,7 @@ class RecipeServiceTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals("testuser", result.get(0).getUsername());
+        assertEquals("testuser", result.getFirst().getUsername());
     }
 
     @Test
@@ -491,7 +488,7 @@ class RecipeServiceTest {
 
         // Assert
         assertEquals(1, result.size());
-        assertEquals(100.0, result.get(0).getQuantityInGrams());
+        assertEquals(100.0, result.getFirst().getQuantityInGrams());
     }
 
     @Test
@@ -542,11 +539,11 @@ class RecipeServiceTest {
         when(recipeRepository.save(recipe)).thenReturn(recipe);
 
         // Act
-        RecipeDto result = recipeService.updateRecipe(1, updatedDto);
+        recipeService.updateRecipe(1, updatedDto);
 
         // Assert
         assertEquals(1, recipe.getRecipeIngredients().size());
-        assertEquals(200.0, recipe.getRecipeIngredients().get(0).getQuantityInGrams());
+        assertEquals(200.0, recipe.getRecipeIngredients().getFirst().getQuantityInGrams());
     }
 
     @Test
@@ -576,49 +573,6 @@ class RecipeServiceTest {
         verify(inMemoryCache).remove("recipe_ingredient_Ingredient 2");
         verify(recipeRepository).deleteById(1);
     }
-
-//    @Test
-//    void updateRecipe_shouldClearCacheForAllIngredients() {
-//        // Arrange
-//        Ingredient ingredient2 = new Ingredient();
-//        ingredient2.setId(2);
-//        ingredient2.setName("Ingredient 2");
-//        ingredient2.setRecipeIngredients(new ArrayList<>());
-//
-//        RecipeIngredient ri2 = new RecipeIngredient();
-//        ri2.setIngredient(ingredient2);
-//        ri2.setRecipe(recipe);
-//
-//        recipe.getRecipeIngredients().add(recipeIngredient);
-//        recipe.getRecipeIngredients().add(ri2);
-//
-//        // Создаем DTO с инициализированным списком ингредиентов
-//        RecipeDto updatedDto = new RecipeDto();
-//        updatedDto.setName("Updated Recipe");
-//        updatedDto.setRecipeIngredients(new ArrayList<>()); // Инициализируем список
-//
-//        // Добавляем текущие ингредиенты в DTO
-//        RecipeIngredientDto riDto1 = new RecipeIngredientDto();
-//        riDto1.setIngredientId(recipeIngredient.getIngredient().getId());
-//        riDto1.setQuantityInGrams(recipeIngredient.getQuantityInGrams());
-//
-//        RecipeIngredientDto riDto2 = new RecipeIngredientDto();
-//        riDto2.setIngredientId(ri2.getIngredient().getId());
-//        riDto2.setQuantityInGrams(ri2.getQuantityInGrams());
-//
-//        updatedDto.getRecipeIngredients().add(riDto1);
-//        updatedDto.getRecipeIngredients().add(riDto2);
-//
-//        when(recipeRepository.findById(1)).thenReturn(Optional.of(recipe));
-//        when(recipeRepository.save(recipe)).thenReturn(recipe);
-//
-//        // Act
-//        RecipeDto result = recipeService.updateRecipe(1, updatedDto);
-//
-//        // Assert
-//        verify(inMemoryCache).remove("recipe_ingredient_Test Ingredient");
-//        verify(inMemoryCache).remove("recipe_ingredient_Ingredient 2");
-//    }
 
     @Test
     void patchRecipe_shouldNotClearCache_whenNoIngredientsChanged() {

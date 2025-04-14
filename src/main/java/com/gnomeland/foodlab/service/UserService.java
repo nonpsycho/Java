@@ -96,6 +96,9 @@ public class UserService {
     }
 
     public UserDto patchUser(Integer id, UserDto partialUserDto) {
+        if (partialUserDto == null) {
+            partialUserDto = new UserDto(); // Обрабатываем null случай
+        }
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserException(USER_NOT_FOUND_MESSAGE + id));
 
