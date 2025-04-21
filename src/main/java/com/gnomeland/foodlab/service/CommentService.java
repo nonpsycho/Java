@@ -33,7 +33,6 @@ public class CommentService {
     }
 
     public ResponseEntity<String> addComment(CommentDto commentDto) {
-        // Валидация теперь происходит в контроллере
         Integer userId = commentDto.getUserId();
         Integer recipeId = commentDto.getRecipeId();
 

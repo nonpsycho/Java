@@ -6,6 +6,7 @@ import com.gnomeland.foodlab.dto.RecipeDto;
 import com.gnomeland.foodlab.dto.UserDto;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
+    private static final String MESSAGE_KEY = "message";
 
     @ExceptionHandler(UserAssociatedException.class)
     public ResponseEntity<String> handleUserAssociatedException(
@@ -31,21 +33,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<RecipeDto> handleRecipeException(RecipeException e) {
         RecipeDto errorDto = new RecipeDto();
         errorDto.setName(e.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto); // 404
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto);
     }
 
     @ExceptionHandler(CommentException.class)
     public ResponseEntity<CommentDto> handleCommentException(CommentException e) {
         CommentDto errorDto = new CommentDto();
         errorDto.setText(e.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto); // 404
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto);
     }
 
     @ExceptionHandler(UserException.class)
-    public ResponseEntity<UserDto> handleUserException(UserException e) {
+    public ResponseEntity<String> handleUserException(UserException e) {
         UserDto errorDto = new UserDto();
         errorDto.setUsername(e.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDto);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
     }
 
     @ExceptionHandler(IngredientException.class)
@@ -82,7 +84,26 @@ public class GlobalExceptionHandler {
     private ResponseEntity<Map<String, Object>> buildErrorResponse(
             String message, HttpStatus status) {
         Map<String, Object> errorResponse = new HashMap<>();
-        errorResponse.put("message", message);
+        errorResponse.put(MESSAGE_KEY, message);
         return new ResponseEntity<>(errorResponse, status);
+    }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<String> handleBadRequestException(BadRequestException ex) {
+        return new ResponseEntity<>(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(LogNotReadyException.class)
+    public ResponseEntity<Map<String, String>> handleLogNotReady(LogNotReadyException ex) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(Map.of(MESSAGE_KEY, ex.getMessage()));
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<Map<String, String>>
+        handleNoSuchElementException(NoSuchElementException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of(MESSAGE_KEY, ex.getMessage()));
     }
 }
